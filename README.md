@@ -67,6 +67,7 @@ exactly one success.
 | G1 Several cars per supplier on one request | Done |
 | G2 Car type choice | Done |
 | G5 Sort and filter the taxi list | Done |
+| Extra: the traveler sees which suppliers can serve a request (with their cars) and can ask one directly; a supplier can reject a request with a reason | Done |
 
 Every refusal names its rule (R1–R9) and the numbers involved, e.g.
 `R3: Price ₹9,000 is below the minimum ₹10,200 (range ₹10,200 – ₹16,800).`
@@ -85,6 +86,7 @@ Every refusal names its rule (R1–R9) and the numbers involved, e.g.
 | R9 | A change keeps the same arrival airport; a flight-only change sets pickup to the new landing + 60; one pending change per booking; something must change |
 | Offers | An offer does not make a car busy; only a booking does. One car can be offered once per request |
 | Accept a change | Re-checks R2 and that the car is free at the new time (ignoring the booking's own old slot). If the car is busy, the change is saved as REJECTED by SYSTEM with the reason, and the booking stays |
+| Ask a supplier | `request_invites` holds one row per request and supplier: REQUESTED (the traveler asked) or DECLINED (the supplier rejected, with a reason). It never decides who sees a request: that stays R4, so a supplier that was not asked still sees every request it can serve. Only a supplier that can serve the request can be asked (else 422 with the rule); a supplier that already assigned a car cannot reject the request (409) |
 | Booking number | Random, 10 digits, first digit 1–9; spaces and dashes are ignored on lookup |
 | Request ids | Seeds keep `REQ-0001`…`REQ-0003`; app requests start at `REQ-1001` |
 | Times | Local strings `2027-04-10T11:30` everywhere; a value ending in `Z` or an offset is refused (400) |

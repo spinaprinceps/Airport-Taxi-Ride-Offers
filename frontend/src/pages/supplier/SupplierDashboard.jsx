@@ -15,6 +15,7 @@ export default function SupplierDashboard() {
   const requests = useLoad(() => api.supplierRequests(companyId), [companyId], POLL_MS);
   const offers = useLoad(() => api.supplierOffers(companyId), [companyId], POLL_MS);
   const changes = useLoad(() => api.supplierChanges(companyId), [companyId], POLL_MS);
+  const pairs = useLoad(() => api.shareablePairs(companyId), [companyId], POLL_MS);
 
   const me = (suppliers.data ?? []).find((s) => s.companyId === companyId);
   const pending = (changes.data ?? []).filter((c) => c.change.status === 'PENDING').length;
@@ -32,6 +33,7 @@ export default function SupplierDashboard() {
       <JumpNav
         items={[
           ['incoming', `Incoming requests${count(requests)}`],
+          ['pairs', `Shareable pairs${count(pairs)}`],
           ['my-offers', `My offers${count(offers)}`],
           ['changes', changesLabel],
         ]}
@@ -40,6 +42,15 @@ export default function SupplierDashboard() {
       <section id="incoming">
         <h2>Incoming requests{count(requests)}</h2>
         <Requests companyId={companyId} load={requests} onChange={offers.reload} />
+      </section>
+
+      <section id="pairs">
+        <h2>Shareable pairs{count(pairs)}</h2>
+        <p className="muted">
+          Two travelers on the same flight to the same area who agreed to share. One car, one trip, a price for each
+          family. Pickup is the later of the two; your car must fit both parties together.
+        </p>
+        <Pairs companyId={companyId} load={pairs} onChange={() => Promise.all([offers.reload(), requests.reload()])} />
       </section>
 
       <section id="my-offers">
@@ -202,6 +213,122 @@ function CarVerdicts({ companyId, requestId }) {
   );
 }
 
+// GET /api/suppliers/:companyId/shareable-pairs — worked out live; one shared offer per pair.
+function Pairs({ companyId, load, onChange }) {
+  const { data, error, reload } = load;
+  const refresh = () => Promise.all([reload(), onChange()]);
+  return (
+    <>
+      <ErrorBox error={error} />
+      {!data && !error ? <Loading /> : null}
+      {data && data.length === 0 ? <p className="empty">No two open requests you can serve can share a car right now.</p> : null}
+      {(data ?? []).map((p) => (
+        <PairCard key={p.requests.map((r) => r.requestId).join('+')} companyId={companyId} pair={p} refresh={refresh} />
+      ))}
+    </>
+  );
+}
+
+function PairCard({ companyId, pair, refresh }) {
+  const [a, b] = pair.requests;
+  const c = pair.combined;
+  const [vehicleId, setVehicleId] = useState('');
+  const [prices, setPrices] = useState({});
+  const [error, setError] = useState(null);
+  const [working, setWorking] = useState(false);
+
+  const offered = new Set(pair.myOffers.map((o) => o.vehicleId));
+  const cars = pair.fittingFreeVehicles.filter((car) => !offered.has(car.vehicleId));
+  const chosen = cars.some((car) => car.vehicleId === vehicleId) ? vehicleId : (cars[0]?.vehicleId ?? '');
+  const surname = (r) => r.travelerName.replace(/ family$/i, '');
+
+  async function submit(ev) {
+    ev.preventDefault();
+    setWorking(true);
+    setError(null);
+    try {
+      await api.createSharedOffer(companyId, {
+        requestIds: [a.requestId, b.requestId],
+        vehicleId: chosen,
+        prices: { [a.requestId]: toNumber(prices[a.requestId]), [b.requestId]: toNumber(prices[b.requestId]) },
+      });
+      setPrices({});
+    } catch (err) {
+      setError(err);
+    }
+    await refresh();
+    setWorking(false);
+  }
+
+  return (
+    <section className="card request-card">
+      <div className="title-row">
+        <h3>
+          {surname(a)} + {surname(b)} · {a.flight.flightNumber} → {a.hotel.city} / {a.hotel.area}
+        </h3>
+        <span className="status status-shared">SHARED · {c.passengers} PEOPLE</span>
+      </div>
+      <p className="summary">
+        Shared pickup <strong>{dateTime(c.pickupAt)}</strong> · car busy until {dateTime(c.busyUntil)} ·{' '}
+        {c.passengers} people · {c.largeBags} large, {c.smallBags} small bags · {c.carType ?? 'any car'}
+      </p>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Request</th><th>Traveler</th><th>Hotel</th><th>Own pickup</th><th>Party</th><th>Bags</th><th>Their price</th></tr></thead>
+          <tbody>
+            {[a, b].map((r) => (
+              <tr key={r.requestId}>
+                <td>{r.requestId}</td>
+                <td>{r.travelerName}</td>
+                <td>{r.hotel.name}</td>
+                <td>{dateTime(r.pickupAt)}</td>
+                <td>{r.passengers}</td>
+                <td>{r.largeBags} large, {r.smallBags} small</td>
+                <td>{inr(r.priceInr)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {pair.myOffers.length > 0 ? (
+        <p className="summary spaced">
+          <strong>Shared offers by you:</strong>{' '}
+          {pair.myOffers.map((o) => (
+            <span key={o.offerId}>
+              {o.requestId}: {o.vehicleId} at {inr(o.priceInr)} <Status value={o.status} labels={SUPPLIER_OFFER_LABELS} />{' '}
+            </span>
+          ))}
+        </p>
+      ) : null}
+
+      <ErrorBox error={error} />
+      <form className="foot decide" onSubmit={submit}>
+        <div className="row">
+          <strong>One car:</strong>
+          <select value={chosen} onChange={(ev) => setVehicleId(ev.target.value)} aria-label="Car for the shared ride">
+            {cars.length === 0 ? <option value="">No other car fits both and is free</option> : null}
+            {cars.map((car) => <option key={car.vehicleId} value={car.vehicleId}>{car.vehicleId} · {carSpec(car)}</option>)}
+          </select>
+        </div>
+        <div className="row">
+          {[a, b].map((r) => (
+            <input
+              key={r.requestId}
+              inputMode="numeric"
+              placeholder={`${surname(r)} pays ₹ (${inr(r.priceMinInr)} – ${inr(r.priceMaxInr)})`}
+              aria-label={`Price for ${r.requestId}`}
+              value={prices[r.requestId] ?? ''}
+              onChange={(ev) => setPrices((p) => ({ ...p, [r.requestId]: ev.target.value }))}
+            />
+          ))}
+          <button className="primary" type="submit" disabled={working || !chosen}>Offer shared ride</button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
 // GET /api/suppliers/:companyId/offers — newest first.
 function Offers({ load }) {
   const { data, error } = load;
@@ -225,7 +352,10 @@ function Offers({ load }) {
                   <td>{dateTime(o.pickupAt)}</td>
                   <td>{o.vehicleId}</td>
                   <td>{inr(o.priceInr)}</td>
-                  <td><Status value={o.status} labels={SUPPLIER_OFFER_LABELS} /></td>
+                  <td>
+                    <Status value={o.status} labels={SUPPLIER_OFFER_LABELS} />
+                    {o.groupId !== null ? <> <span className="status status-shared">SHARED</span></> : null}
+                  </td>
                   <td>{o.bookingNumber ?? '—'}</td>
                 </tr>
               ))}

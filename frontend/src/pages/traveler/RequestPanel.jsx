@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../../api.js';
 import { useLoad } from '../../useLoad.js';
-import { CAR_TYPES, POLL_MS, carSpec, inr } from '../../format.js';
+import { CAR_TYPES, POLL_MS, carSpec, dateTime, inr } from '../../format.js';
 import ErrorBox from '../../components/ErrorBox.jsx';
 import { Loading, Status, TRAVELER_OFFER_LABELS } from '../../components/Bits.jsx';
 
@@ -10,6 +10,12 @@ function spread(offers) {
   if (!offers?.length) return null;
   const prices = offers.map((o) => o.priceInr);
   return { min: Math.min(...prices), max: Math.max(...prices), count: prices.length };
+}
+
+// "2 adults, 1 child · 2 large, 1 small bags" (no name: the other family stays private)
+function otherParty(p) {
+  const kids = p.children ? `, ${p.children} ${p.children === 1 ? 'child' : 'children'}` : '';
+  return `${p.adults} ${p.adults === 1 ? 'adult' : 'adults'}${kids} · ${p.largeBags} large, ${p.smallBags} small bags`;
 }
 
 // Inside a request card: the suppliers that can serve it (with a Request button), and the offers list
@@ -179,6 +185,12 @@ export default function RequestPanel({ view, onBooked, onChanged }) {
                     <div className="muted">★ {o.rating}</div>
                   </td>
                   <td>
+                    {o.shared ? (
+                      <div className="shared-note">
+                        <span className="status status-shared">SHARED</span> with 1 other party:{' '}
+                        {otherParty(o.shared.otherParty)} · pickup {dateTime(o.shared.pickupAt)}
+                      </div>
+                    ) : null}
                     {o.vehicleId ? (
                       <>
                         {o.vehicleId}

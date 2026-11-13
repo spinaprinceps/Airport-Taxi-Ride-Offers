@@ -88,6 +88,15 @@ export default function BookingPanel({ bookingNumber, confirmed, onClose }) {
         <div><dt>Bags</dt><dd>{bags(b)}</dd></div>
       </dl>
 
+      {b.shared ? (
+        <div className="banner info spaced">
+          <span className="status status-shared">SHARED</span> Shared ride with 1 other party
+          {b.shared.otherPartiesBooked > 0 ? '. The other family has booked too.' : '. The other family has not booked yet.'}
+          {' '}A shared ride cannot change its flight or pickup, because it would move the other family too.
+        </div>
+      ) : null}
+
+      {b.shared ? null : <>
       <h3 className="spaced">Change request</h3>
       <p className="muted">
         Choose a new flight, a new pickup time, or both. A new flight alone sets the pickup to its landing + 60 min.
@@ -126,6 +135,7 @@ export default function BookingPanel({ bookingNumber, confirmed, onClose }) {
           </button>
         </div>
       </form>
+      </>}
 
       {b.changeRequests.length > 0 ? (
         <div className="table-wrap spaced">

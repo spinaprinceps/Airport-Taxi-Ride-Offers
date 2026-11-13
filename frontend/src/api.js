@@ -70,6 +70,8 @@ export const api = {
     call('POST', `/suppliers/${e(companyId)}/requests/${e(requestId)}/offers`, body),
   declineRequest: (companyId, requestId, reason) =>
     call('POST', `/suppliers/${e(companyId)}/requests/${e(requestId)}/decline`, { reason: reason || null }),
+  shareablePairs: (companyId) => call('GET', `/suppliers/${e(companyId)}/shareable-pairs`),
+  createSharedOffer: (companyId, body) => call('POST', `/suppliers/${e(companyId)}/shared-offers`, body),
   supplierOffers: (companyId) => call('GET', `/suppliers/${e(companyId)}/offers`),
   supplierChanges: (companyId) => call('GET', `/suppliers/${e(companyId)}/change-requests`),
   acceptChange: (companyId, changeId) =>

@@ -63,7 +63,9 @@ export default function MyRequests({ name, focus, onOpenBooking }) {
           <section className="card request-card" key={r.requestId} id={`request-${r.requestId}`}>
             <div className="title-row">
               <h2>{r.requestId} · {r.flight.to} → {r.hotel.name}, {r.hotel.city} / {r.hotel.area}</h2>
-              <Status value={r.status} />
+              <span>
+                {r.shareOk ? <span className="status status-shared">SHARING OK</span> : null} <Status value={r.status} />
+              </span>
             </div>
             <p className="summary">
               Flight {r.flight.flightNumber} · pickup {dateTime(r.pickupAt)} · {party(r)} · bags {bags(r)} ·{' '}

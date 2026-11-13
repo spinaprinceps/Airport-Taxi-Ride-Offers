@@ -163,3 +163,9 @@ main section[id] { scroll-margin-top: 60px; }
 .request-card[id] { scroll-margin-top: 60px; }
 .panel { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 .panel .table-wrap { margin-bottom: 8px; }
+
+/* Shared rides */
+.status-shared { background: #efe6fb; color: #5b2c9e; }
+.shared-note { font-size: 13px; margin-bottom: 4px; }
+label.check { flex-direction: row; align-items: flex-start; gap: 10px; font-weight: 600; }
+label.check input { width: auto; margin-top: 4px; }

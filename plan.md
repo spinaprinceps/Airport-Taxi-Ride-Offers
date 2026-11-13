@@ -232,6 +232,23 @@ only records progress, decisions and deviations.
 
 Test count: **155 passing**.
 
+### S11 — ask a supplier, supplier rejects a request (added after the frontend rebuild)
+- Why: the traveler dashboard lists the suppliers that can serve a request and has a Request button; the supplier
+  dashboard can reject an incoming request with a reason. Visibility is unchanged: R4 only.
+- `schema.sql` → `request_invites` (PK request_id + company_id, status REQUESTED | DECLINED, reason).
+- `repos/invites.js`, `services/invites.js`, `routes/invites.js`:
+  - `GET /api/requests/:requestId/suppliers` → suppliers passing R4 with ≥1 car passing R5 + R6, file order, each
+    `{ companyId, name, rating, serviceFrom, serviceUntil, vehicles[fit and free], invite: { status, reason } | null }`;
+    `[]` for a booked request; 404 unknown request.
+  - `POST /api/requests/:requestId/suppliers/:companyId/ask` → 201 `{ requestId, companyId, status, reason }`; again → 200;
+    check order 404 request → 404 supplier → 409 not OPEN → 422 R4 → 422 R5/R6 (no car fits and is free) →
+    409 "Sakura Cabs declined this request.".
+  - `POST /api/suppliers/:companyId/requests/:requestId/decline` `{ reason? }` → 200 invite DECLINED (also without a
+    prior ask); 403 R4; 409 not OPEN; 409 "Sakura Cabs has already assigned a car to REQ-…".
+- `services/dashboard.js` → list items and the detail now carry `invite` (`null` when not asked).
+- Not guarded: `createOffer` does not look at a DECLINED invite, so a supplier can still assign a car after rejecting.
+- Tests: `test/api/s11-invites.test.js` (14). Count after S11: **169 passing**.
+
 ## Schema = the Eraser data model
 
 - Schema file: `backend/src/schema.sql` (run by `applySchema()` at every boot). `backend/db-init/01-test-db.sql`

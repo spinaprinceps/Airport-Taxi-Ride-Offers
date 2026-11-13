@@ -6,7 +6,7 @@ import ErrorBox from '../../components/ErrorBox.jsx';
 
 const EMPTY = {
   flightId: '', hotelId: '', adults: '1', childAges: '', largeBags: '0', smallBags: '0',
-  pickupAt: '', carType: '', priceInr: '',
+  pickupAt: '', carType: '', priceInr: '', shareOk: false,
 };
 
 // POST /api/requests. The form sends what was typed; the backend applies R1–R3 and its answer is shown as is.
@@ -69,6 +69,7 @@ export default function NewRequest({ name, onCreated }) {
         pickupAt: form.pickupAt || null,
         carType: form.carType || null,
         priceInr: toNumber(form.priceInr),
+        shareOk: form.shareOk,
       }, idempotencyKey.current);
       idempotencyKey.current = crypto.randomUUID(); // the next post is a new request
       setForm(EMPTY);
@@ -175,6 +176,18 @@ export default function NewRequest({ name, onCreated }) {
             </small>
           </label>
         </div>
+
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={form.shareOk}
+            onChange={(ev) => setForm((f) => ({ ...f, shareOk: ev.target.checked }))}
+          />
+          <span>
+            Happy to share a car with another family on my flight going to the same area
+            <small className="muted">Suppliers may then offer a shared ride, usually at a lower price.</small>
+          </span>
+        </label>
 
         <ErrorBox error={error} />
         {created ? (

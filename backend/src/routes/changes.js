@@ -13,6 +13,7 @@ changesRouter.get('/suppliers/:companyId/change-requests', asyncRoute(async (req
   res.json(await changes.listSupplierChanges(req.params.companyId));
 }));
 
+
 changesRouter.post('/suppliers/:companyId/change-requests/:changeId/accept', asyncRoute(async (req, res) => {
   res.json(await changes.acceptChange(req.params.companyId, req.params.changeId));
 }));
