@@ -55,9 +55,9 @@ only records progress, decisions and deviations.
 | S2 requests | **Done** | Partner | Verified live: Menon REQ-1001 → 2 suppliers; ₹9,000 → 422 R3; 7 adults → 0 + reason; survives restart. |
 | S3 dashboard | **Done** | Partner | Verified live: Sakura sees REQ-1001 with [SC-3]; per-car verdicts; Narita list empty, detail 403 R4. |
 | S4 offers | **Done** | Partner | Verified live on REQ-1001: SC-2 → 422 R6; SC-3 ₹12,500 → offer 1; Edo EP-2 ₹11,800 → offer 2. |
-| S5 offer list / reject | Not started | | |
-| S6 booking | Not started | | |
-| S7 booking summary | Not started | | |
+| S5 offer list / reject | **Done** | Partner | Verified live: EP-2 ₹11,800 then SC-3 ₹12,500; reject EP-2 → REJECTED. |
+| S6 booking | **Done** | Partner | Verified live: booking 4376920961; Edo REJECTED, Sakura BOOKED + number. Race tests stable ×5. |
+| S7 booking summary | **Done** | Partner | Verified live: summary after `restart api`; 1234567890 → 404 "Booking not found". |
 | S8 change request | Not started | | |
 | S9 supplier decides | Not started | | |
 | S10 hardening | Not started | | |
@@ -154,7 +154,33 @@ only records progress, decisions and deviations.
 - `routes/offers.js` → `POST /api/suppliers/:companyId/requests/:requestId/offers`, `GET /api/suppliers/:companyId/offers`.
 - Tests: `test/api/s4-offers.test.js` (14).
 
-Test count: **89 passing**.
+### S5 — taxi list, reject (not yet committed)
+- `GET /api/requests/:requestId/offers?sort=price_asc|price_desc&type=` → `listRequestOffers` (repo + service);
+  ties by `created_at, offer_id` both directions; 400 bad sort/type; 404 unknown request.
+  `vehicleFreeNow` = no R6 clash at the request's time, ignoring the busy time of the request's own booking.
+- `POST /api/offers/:offerId/reject` → `rejectOffer` (transaction, `lockOffer` FOR UPDATE); REJECTED again → 200
+  unchanged; BOOKED / NOT_CHOSEN → 409 "Offer N is BOOKED and cannot be rejected."; non-numeric id → 404.
+- `services/offers.js` → `parseOfferId(raw)` (shared with bookings). `repos/offers.js` → `listRequestOffers`,
+  `lockOffer`, `setOfferStatus`.
+- Tests: `test/api/s5-taxis.test.js` (11). Rating = file value (Edo 4.8; plan's example said 4.6).
+
+### S6 — book, no double booking (not yet committed)
+- `POST /api/offers/:offerId/book` → `services/bookings.js` `bookOffer`: read offer's request id, then one
+  transaction: lock **request FOR UPDATE first, then offer FOR UPDATE** (same order as S4's request FOR SHARE →
+  no deadlocks). BOOKED → 200 same number; REJECTED → 409 "Offer N was rejected."; NOT_CHOSEN → 409 "Offer N was not
+  chosen."; request not OPEN → 409 "Request X is already booked."; R6 clash → 409 CONFLICT with R6 violation
+  "SC-3 is busy 10 Apr 11:30 – 14:30."; number = `crypto.randomInt(1e9, 1e10)`, `ON CONFLICT DO NOTHING` + retry;
+  busy time insert under SAVEPOINT, 23P01 → same 409 R6; then offer BOOKED, other OFFERED → NOT_CHOSEN, request BOOKED.
+- `repos/bookings.js` → `insertBooking`, `insertBookingBusyTime`, `markBooked`, `findBookingNumberByOffer`.
+- Tests: `test/api/s6-booking.test.js` (10) incl. parallel bookings of one car (one 201, one 409) and double click.
+
+### S7 — booking summary (not yet committed)
+- `GET /api/bookings/:bookingNumber` → `getBookingSummary`: spaces/dashes stripped; not `^[1-9]\d{9}$` or unknown →
+  404 "Booking not found". Flight = `bookings.flight_id` (changes in S9 update it); `busyUntil` = the booking's busy
+  time `end_at`. `changeRequests` via `repos/changes.js` `listBookingChanges` (newest first), `toChange(row)`.
+- Tests: `test/api/s7-summary.test.js` (4) incl. reload (schema + loader) keeps booking and BOOKED request.
+
+Test count: **114 passing**.
 
 ## Schema = the Eraser data model
 
@@ -186,12 +212,12 @@ Test count: **89 passing**.
   (it shows why per car); the list hides such requests.
 - R7 (own car) is a 403 FORBIDDEN carrying an R7 violation, as the plan's error table puts "not its own" at 403.
 - Offer violations are listed in rule-number order (R3, R4, R5, R6).
-- The live `taxi` DB was reset after S4 (fresh data load, no app rows); run `docker compose down -v` again before the demo.
+- The live `taxi` DB has the S5–S7 check data (REQ-1001 booked as 4376920961); run `docker compose down -v` before the demo.
 
-## Next up — S5 backend (traveler sees taxis, rejects one)
+## Next up — S8 backend (traveler sends a change request)
 
-1. Tests first (plan §8 Slice 5 list): `GET /api/requests/:id/offers` default price_asc (EP-2 11800 then SC-3 12500),
-   `price_desc` reverses; `type=SUV` filters; equal prices sort by creation time; `vehicleFreeNow` from R6;
-   `POST /api/offers/:offerId/reject` → REJECTED, request stays OPEN, other offer stays OFFERED; repeat → 200 unchanged;
-   409 when BOOKED / NOT_CHOSEN.
-2. Reject inside a transaction with `SELECT … FOR UPDATE` on the offer.
+1. Tests first (plan §9 Slice 8 list): pickup 12:00 → 201 PENDING, booking unchanged; FL-402 → newPickupAt 11 Apr 11:30;
+   FL-405 → 22:30; pickup 11:00 → 422 R2; FL-405 + 12:00 → 422 R2; FL-403 (HND) → 422 R9 same airport;
+   FL-999 → 422 R1; `{}` → 400; same as current → 422 R9 "Nothing to change"; second while PENDING → 409.
+2. `rules/changeRules.js` → `resolveChange`; `services/changes.js`, `routes/changes.js`; unique index
+   `cr_one_pending_per_booking` → 409.
