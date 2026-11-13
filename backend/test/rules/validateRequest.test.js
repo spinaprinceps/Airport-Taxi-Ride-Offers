@@ -50,6 +50,13 @@ describe('validateRequest (R1-R3, all violations at once)', () => {
     expect(out).toEqual([{ rule: 'R1', field: 'hotelId', message: 'Hotel HTL-X does not exist.' }]);
   });
 
+  it('a landing after 23:00 gives an earliest pickup on the next calendar day', () => {
+    const late = { ...flight, arrival_local: '2027-04-10T23:15' };
+    const out = validateRequest({ ...menon, pickupAt: '2027-04-10T23:59' }, late, hotel, airport, route);
+    expect(out[0].message).toContain('earliest pickup is 11 Apr 00:15');
+    expect(validateRequest({ ...menon, pickupAt: '2027-04-11T00:15' }, late, hotel, airport, route)).toEqual([]);
+  });
+
   it('collects R1 + R2 + R3 together', () => {
     const out = check({ adults: 0, pickupAt: '2027-04-10T11:00', priceInr: 9000 });
     expect(out.map((x) => x.rule)).toEqual(['R1', 'R2', 'R3']);

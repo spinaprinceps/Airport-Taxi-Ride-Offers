@@ -61,7 +61,7 @@ only records progress, decisions and deviations.
 | S8 change request | **Done** | Partner | Verified live: pickup 12:00 → PENDING. |
 | S9 supplier decides | **Done** | Partner | Verified live: Sakura accepts → pickup 12:00, busy until 15:00. |
 | **Check** | **Passed (backend)** | | Full Menon demo script on a fresh DB (`down -v`, `up --build`), steps 1–9 all as expected. |
-| S10 hardening | Not started | | |
+| S10 hardening | **Done** | Partner (polish) | Judge-style tests green; demo script ×2 from fresh DB all ok; README written; `data/` hash-identical. |
 
 ## Done so far
 
@@ -215,7 +215,22 @@ only records progress, decisions and deviations.
 - Hours (R4) are not re-checked on accept (plan: "Accept re-checks R2 and car free only").
 - Tests: `test/api/s9-decide.test.js` (8) incl. accept+reject race (stable 4/4).
 
-Test count: **137 passing**.
+### S10 — hardening (not yet committed)
+- `test/api/s10-judge.test.js` (17): expected suppliers worked out by hand from the data —
+  HND→Shibuya [JP-01, JP-03, JP-04]; KIX→Umeda [JP-05]; KIX→Gion [JP-05, JP-06]; DXB→Downtown [AE-01, AE-02, AE-03];
+  DXB→Abu Dhabi/Corniche [AE-02, AE-03]; AUH→Saadiyat [AE-02, AE-04]. R1 AUH + Dubai hotel refused.
+  Seed busy times FT-1, GF-1, KA-4, EP-1 ×2 block cars (and EP-1 back to back at 14:00 is ok). Marina 00:30 seen,
+  02:00 not (403 "closed at 02:00 (open 05:00–01:00)"). FL-301 (KIX 16 Apr 22:50) → pickup 23:50, busy until
+  17 Apr 03:52, a 03:00 request sees KN-1 busy across midnight. Seeds: REQ-0001 booked by Sakura SC-1;
+  REQ-0002 has 0 suppliers (no SEDAN at Kansai); REQ-0003 seen by [AE-02, AE-04], booked on DR-2. Restart keeps counts.
+- Data fact: **no arrival flight lands late enough for landing + 60 to pass midnight** (latest 22:50). The next-day
+  pickup is covered by a rule test in `validateRequest.test.js` and `changeRules.test.js`.
+- These tests check existing behaviour, so they passed on first run (no fail-first step).
+- `README.md` at the repo root (run, reset, architecture, M6 design, M1–M7 + G1/G2/G5, rules table, errors,
+  limitations, tests).
+- Demo script run twice from a fresh DB (`down -v`, `up --build`): 10/10 checks both times. DB left fresh after.
+
+Test count: **155 passing**.
 
 ## Schema = the Eraser data model
 
@@ -247,13 +262,14 @@ Test count: **137 passing**.
   (it shows why per car); the list hides such requests.
 - R7 (own car) is a 403 FORBIDDEN carrying an R7 violation, as the plan's error table puts "not its own" at 403.
 - Offer violations are listed in rule-number order (R3, R4, R5, R6).
-- The live `taxi` DB has the demo-script data (REQ-1001 booked as 5592031321, change 1 accepted); run
-  `docker compose down -v` before the real demo.
+- The live `taxi` DB was reset after S10 (seed data only). Run `docker compose down -v` again before the real demo.
 
-## Next up — S10 backend (hardening)
+## Next up — after S10
 
-1. Judge-style tests (plan §10): a request at each other airport reaches exactly the right dashboards (HND→Tokyo,
-   KIX→Osaka, KIX→Kyoto, DXB→Dubai, DXB→Abu Dhabi, AUH→Abu Dhabi); R1 AUH + Dubai hotel refused, DXB + Abu Dhabi ok;
-   seed busy times block FT-1, GF-1, KA-4, EP-1 (×2); Marina Rides 00:30 served, 02:00 not; late landing → next-day
-   pickup and busy time across midnight; the 3 seed requests can be offered on and booked; restart keeps everything.
-2. README.md (start, reset, architecture, M1–M7 + G items, decisions table, limitations, tests).
+Backend is feature-complete for M1–M7, G1, G2, G5. Remaining:
+1. Frontend (partner): all screens; then the browser "Done when" checks and `docker compose up --build` with `web`.
+2. Submission checklist (plan §10): last push; `data/` unchanged (verified); zip with source, README,
+   docker-compose.yml, Dockerfiles, no node_modules / dist / .env; unzip into a new folder and run the demo once.
+3. Two timed demo rehearsals. Backend live change: edit `MIN_PICKUP_GAP_MIN` in `backend/src/config.js` and show the
+   R2 test failing (`npm test -- validateRequest`).
+4. Optional extras, in order: "free again from" hint in R6 messages (15 min); offer expiry G4 (40 min).
