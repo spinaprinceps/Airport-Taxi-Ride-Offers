@@ -14,6 +14,7 @@ const EMPTY = {
 export default function NewRequest({ name, onCreated }) {
   const flights = useLoad(() => api.flights(), []);
   const hotels = useLoad(() => api.hotels(), []);
+  
 
   const [form, setForm] = useState(EMPTY);
   const [created, setCreated] = useState(null);
