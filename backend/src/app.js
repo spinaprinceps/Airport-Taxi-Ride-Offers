@@ -6,6 +6,7 @@ import { requestsRouter } from './routes/requests.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { offersRouter } from './routes/offers.js';
 import { bookingsRouter } from './routes/bookings.js';
+import { changesRouter } from './routes/changes.js';
 
 export function createApp() {
   const app = express();
@@ -19,6 +20,7 @@ export function createApp() {
   app.use('/api', dashboardRouter);
   app.use('/api', offersRouter);
   app.use('/api', bookingsRouter);
+  app.use('/api', changesRouter);
 
   app.use('/api', (req, res) => {
     res.status(404).json({ code: 'NOT_FOUND', message: `No route ${req.method} ${req.originalUrl}`, violations: [] });

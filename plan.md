@@ -58,8 +58,9 @@ only records progress, decisions and deviations.
 | S5 offer list / reject | **Done** | Partner | Verified live: EP-2 ₹11,800 then SC-3 ₹12,500; reject EP-2 → REJECTED. |
 | S6 booking | **Done** | Partner | Verified live: booking 4376920961; Edo REJECTED, Sakura BOOKED + number. Race tests stable ×5. |
 | S7 booking summary | **Done** | Partner | Verified live: summary after `restart api`; 1234567890 → 404 "Booking not found". |
-| S8 change request | Not started | | |
-| S9 supplier decides | Not started | | |
+| S8 change request | **Done** | Partner | Verified live: pickup 12:00 → PENDING. |
+| S9 supplier decides | **Done** | Partner | Verified live: Sakura accepts → pickup 12:00, busy until 15:00. |
+| **Check** | **Passed (backend)** | | Full Menon demo script on a fresh DB (`down -v`, `up --build`), steps 1–9 all as expected. |
 | S10 hardening | Not started | | |
 
 ## Done so far
@@ -180,7 +181,41 @@ only records progress, decisions and deviations.
   time `end_at`. `changeRequests` via `repos/changes.js` `listBookingChanges` (newest first), `toChange(row)`.
 - Tests: `test/api/s7-summary.test.js` (4) incl. reload (schema + loader) keeps booking and BOOKED request.
 
-Test count: **114 passing**.
+### S6 fix — deadlock between parallel bookings of one car (found while running S8)
+- Two bookings inserting overlapping busy times of one car at the same instant could deadlock inside the
+  exclusion constraint (each waits for the other) → Postgres aborted one → 500.
+- Fix: `repos/companies.js` → `lockVehicle(id, db)` = `SELECT … FROM vehicles … FOR NO KEY UPDATE`, taken in
+  `bookOffer` and `acceptChange` before reading busy times. Bookings/accepts of the same car now run one after the
+  other; the exclusion constraint stays as the last guard. Race test then passed 8/8 runs.
+- Lock orders: book = request → offer → vehicle; offer create = request (SHARE); submit change = booking;
+  accept/reject change = booking → change → vehicle.
+
+### S8 — change request (not yet committed)
+- `rules/changeRules.js` → `resolveChange(booking{airport, flightId, pickupAt}, flight, input)` → `{ flightId, pickupAt,
+  violations }`: unknown flight R1 "Flight FL-999 does not exist." (field newFlightId); other airport R9 "A change must
+  keep the same arrival airport (NRT)."; pickup default landing + 60; R2 via `checkPickup(…, 'newPickupAt')`;
+  unchanged → R9 "Nothing to change.".
+- `services/changes.js` → `submitChange(number, body)`: zod (400 if neither field / bad date-time), 404 "Booking not found",
+  transaction with `lockBooking` (FOR UPDATE OF b); pending → 409 "Booking N already has a pending change request."
+  (also 23505 `cr_one_pending_per_booking`); rules → 422; insert PENDING. Check order: 400 → 404 → 409 → 422.
+- `repos/changes.js` → `hasPendingChange`, `insertChange`, `lockChange`, `decideChange`, `listCompanyChanges`.
+- `repos/bookings.js` → `lockBooking`, `moveBooking` (updates booking flight/pickup, the **request's** flight/pickup,
+  and the busy time).
+- Tests: `test/rules/changeRules.test.js` (5), `test/api/s8-change.test.js` (10). Helper `test/helpers/flow.js`
+  (`postRequest`, `makeOffer`, `makeBooking`).
+
+### S9 — supplier accepts / rejects (not yet committed; code written with S8, so tests passed on first run)
+- `GET /api/suppliers/:companyId/change-requests` → PENDING first, then newest; each `{ change, booking{bookingNumber,
+  travelerName, vehicleId, pickupAt, busyUntil}, newBusyUntil, vehicleFreeAtNewTime }` (own slot ignored).
+- `POST …/:changeId/accept` → transaction: booking → change locks; 403 other supplier; 409 "Change request N is already
+  ACCEPTED."; R2 re-check (422); `lockVehicle`; clash with other busy times → change REJECTED, decidedBy SYSTEM, reason
+  "SC-3 is busy 10 Apr 15:00 – 18:00.", **committed**, then 409 R6; else `moveBooking` (23P01 under SAVEPOINT → same
+  SYSTEM rejection) and ACCEPTED/SUPPLIER → 200 `{ change, booking: <booking summary> }`.
+- `POST …/:changeId/reject` `{ reason? }` → REJECTED/SUPPLIER; booking unchanged.
+- Hours (R4) are not re-checked on accept (plan: "Accept re-checks R2 and car free only").
+- Tests: `test/api/s9-decide.test.js` (8) incl. accept+reject race (stable 4/4).
+
+Test count: **137 passing**.
 
 ## Schema = the Eraser data model
 
@@ -212,12 +247,13 @@ Test count: **114 passing**.
   (it shows why per car); the list hides such requests.
 - R7 (own car) is a 403 FORBIDDEN carrying an R7 violation, as the plan's error table puts "not its own" at 403.
 - Offer violations are listed in rule-number order (R3, R4, R5, R6).
-- The live `taxi` DB has the S5–S7 check data (REQ-1001 booked as 4376920961); run `docker compose down -v` before the demo.
+- The live `taxi` DB has the demo-script data (REQ-1001 booked as 5592031321, change 1 accepted); run
+  `docker compose down -v` before the real demo.
 
-## Next up — S8 backend (traveler sends a change request)
+## Next up — S10 backend (hardening)
 
-1. Tests first (plan §9 Slice 8 list): pickup 12:00 → 201 PENDING, booking unchanged; FL-402 → newPickupAt 11 Apr 11:30;
-   FL-405 → 22:30; pickup 11:00 → 422 R2; FL-405 + 12:00 → 422 R2; FL-403 (HND) → 422 R9 same airport;
-   FL-999 → 422 R1; `{}` → 400; same as current → 422 R9 "Nothing to change"; second while PENDING → 409.
-2. `rules/changeRules.js` → `resolveChange`; `services/changes.js`, `routes/changes.js`; unique index
-   `cr_one_pending_per_booking` → 409.
+1. Judge-style tests (plan §10): a request at each other airport reaches exactly the right dashboards (HND→Tokyo,
+   KIX→Osaka, KIX→Kyoto, DXB→Dubai, DXB→Abu Dhabi, AUH→Abu Dhabi); R1 AUH + Dubai hotel refused, DXB + Abu Dhabi ok;
+   seed busy times block FT-1, GF-1, KA-4, EP-1 (×2); Marina Rides 00:30 served, 02:00 not; late landing → next-day
+   pickup and busy time across midnight; the 3 seed requests can be offered on and booked; restart keeps everything.
+2. README.md (start, reset, architecture, M1–M7 + G items, decisions table, limitations, tests).

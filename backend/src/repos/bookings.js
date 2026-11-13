@@ -26,6 +26,33 @@ export async function getBookingSummaryRow(bookingNumber, db = { query }) {
   return rows[0] ?? null;
 }
 
+// Locks the booking row; returns what change requests need, or null.
+export async function lockBooking(bookingNumber, db) {
+  const { rows } = await db.query(
+    `SELECT b.booking_number, b.request_id, b.company_id, b.vehicle_id, b.flight_id, b.pickup_at,
+            r.airport, r.drive_minutes
+       FROM bookings b JOIN ride_requests r ON r.request_id = b.request_id
+      WHERE b.booking_number = $1
+        FOR UPDATE OF b`,
+    [bookingNumber],
+  );
+  const r = rows[0];
+  return r ? {
+    bookingNumber: r.booking_number, requestId: r.request_id, companyId: r.company_id, vehicleId: r.vehicle_id,
+    flightId: r.flight_id, pickupAt: r.pickup_at, airport: r.airport, driveMinutes: r.drive_minutes,
+  } : null;
+}
+
+// Move the booking (and its request and busy time) to a new flight and pickup.
+export async function moveBooking(b, { flightId, pickupAt, busyUntil }, db) {
+  await db.query(`UPDATE bookings SET flight_id = $2, pickup_at = $3 WHERE booking_number = $1`,
+    [b.bookingNumber, flightId, pickupAt]);
+  await db.query(`UPDATE ride_requests SET flight_id = $2, pickup_at = $3 WHERE request_id = $1`,
+    [b.requestId, flightId, pickupAt]);
+  await db.query(`UPDATE vehicle_busy_times SET start_at = $2, end_at = $3 WHERE booking_number = $1`,
+    [b.bookingNumber, pickupAt, busyUntil]);
+}
+
 export async function findBookingNumberByOffer(offerId, db = { query }) {
   const { rows } = await db.query(`SELECT booking_number FROM bookings WHERE offer_id = $1`, [offerId]);
   return rows[0]?.booking_number ?? null;
