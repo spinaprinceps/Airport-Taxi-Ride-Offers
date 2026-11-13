@@ -1,31 +1,36 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useParams } from 'react-router-dom';
 import Header from './components/Header.jsx';
-import PersonaPicker from './pages/PersonaPicker.jsx';
-import NewRequest from './pages/NewRequest.jsx';
-import MyRequests from './pages/MyRequests.jsx';
-import RequestDetail from './pages/RequestDetail.jsx';
-import BookingLookup from './pages/BookingLookup.jsx';
-import BookingSummary from './pages/BookingSummary.jsx';
-import SupplierDashboard from './pages/SupplierDashboard.jsx';
-import SupplierRequest from './pages/SupplierRequest.jsx';
+import Home from './pages/Home.jsx';
+import TravelerDashboard from './pages/traveler/TravelerDashboard.jsx';
+import SupplierDashboard from './pages/supplier/SupplierDashboard.jsx';
 
-// Who you are lives in the URL: /traveler/... or /supplier/:companyId/...
+const e = encodeURIComponent;
+
+// Old deep links now open the matching part of the one-page dashboards.
+function OldTravelerLink() {
+  const { name, requestId, bookingNumber } = useParams();
+  const q = requestId ? `request=${e(requestId)}` : `booking=${e(bookingNumber)}`;
+  return <Navigate replace to={`/traveler/${e(name)}?${q}`} />;
+}
+function OldSupplierLink() {
+  const { companyId } = useParams();
+  return <Navigate replace to={`/supplier/${e(companyId)}`} />;
+}
+
+// Two dashboards, no login: the persona (traveler name or supplier id) lives in the URL.
 export default function App() {
   return (
     <>
       <Header />
       <main className="page">
         <Routes>
-          <Route path="/" element={<PersonaPicker />} />
-          <Route path="/traveler" element={<Navigate to="/traveler/new" replace />} />
-          <Route path="/traveler/new" element={<NewRequest />} />
-          <Route path="/traveler/requests" element={<MyRequests />} />
-          <Route path="/traveler/requests/:requestId" element={<RequestDetail />} />
-          <Route path="/booking" element={<BookingLookup />} />
-          <Route path="/booking/:bookingNumber" element={<BookingSummary />} />
+          <Route path="/" element={<Home />} />
+          <Route path="/traveler/:name" element={<TravelerDashboard />} />
+          <Route path="/traveler/:name/requests/:requestId" element={<OldTravelerLink />} />
+          <Route path="/traveler/:name/bookings/:bookingNumber" element={<OldTravelerLink />} />
           <Route path="/supplier/:companyId" element={<SupplierDashboard />} />
-          <Route path="/supplier/:companyId/requests/:requestId" element={<SupplierRequest />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="/supplier/:companyId/requests/:requestId" element={<OldSupplierLink />} />
+          <Route path="*" element={<p>Page not found. <Link to="/">Go to the start</Link>.</p>} />
         </Routes>
       </main>
     </>

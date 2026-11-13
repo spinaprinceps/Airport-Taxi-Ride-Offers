@@ -1,38 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-export const POLL_MS = 5000;
+// Loads data with `fn`, again whenever `deps` change, and every `pollMs` if given.
+// A failed reload keeps the last good data and reports the error next to it.
+export function useLoad(fn, deps, pollMs) {
+  const [state, setState] = useState({ data: null, error: null, loading: true });
+  const fnRef = useRef(fn);
+  fnRef.current = fn;
+  const seq = useRef(0);
 
-// Loads data with `load()`; reloads when `deps` change, every `pollMs` (if given), and on reload().
-export function useLoad(load, deps, pollMs) {
-  const [data, setData] = useState(null);
-  const [error, setError] = useState(null);
-  const [tick, setTick] = useState(0);
-  const loadRef = useRef(load);
-  loadRef.current = load;
+  const reload = useCallback(async () => {
+    const id = ++seq.current;
+    try {
+      const data = await fnRef.current();
+      if (id === seq.current) setState({ data, error: null, loading: false });
+    } catch (error) {
+      if (id === seq.current) setState((s) => ({ data: s.data, error, loading: false }));
+    }
+  }, []);
 
   useEffect(() => {
-    let alive = true;
-    const run = () => loadRef.current()
-      .then((d) => { if (alive) { setData(d); setError(null); } })
-      .catch((e) => { if (alive) setError(e); });
-    run();
-    const timer = pollMs ? setInterval(run, pollMs) : null;
-    return () => { alive = false; if (timer) clearInterval(timer); };
+    reload();
+    const timer = pollMs ? setInterval(reload, pollMs) : null;
+    return () => {
+      if (timer) clearInterval(timer);
+      seq.current++; // drop any answer still in flight
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [...deps, tick, pollMs]);
+  }, deps);
 
-  const reload = useCallback(() => setTick((t) => t + 1), []);
-  return { data, error, reload };
-}
-
-// Per-viewer convenience only; works without storage.
-export function remember(key, value) {
-  try { localStorage.setItem(key, value); } catch { /* storage blocked */ }
-}
-export function recall(key) {
-  try { return localStorage.getItem(key) ?? ''; } catch { return ''; }
-}
-
-export function newKey() {
-  try { return crypto.randomUUID(); } catch { return `${Date.now()}-${Math.random().toString(36).slice(2)}`; }
+  return { ...state, reload };
 }

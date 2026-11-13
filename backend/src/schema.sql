@@ -186,3 +186,15 @@ CREATE TABLE IF NOT EXISTS change_requests (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS cr_one_pending_per_booking
   ON change_requests (booking_number) WHERE status = 'PENDING';
+
+-- A traveler asks one supplier for a request (REQUESTED), or a supplier declines a request (DECLINED).
+-- This never decides who sees a request: that is R4 only.
+CREATE TABLE IF NOT EXISTS request_invites (
+  request_id  text NOT NULL REFERENCES ride_requests(request_id),
+  company_id  text NOT NULL REFERENCES companies(company_id),
+  status      text NOT NULL DEFAULT 'REQUESTED' CHECK (status IN ('REQUESTED','DECLINED')),
+  reason      text,
+  created_at  timestamp NOT NULL DEFAULT (clock_timestamp() AT TIME ZONE 'UTC'),
+  decided_at  timestamp,
+  PRIMARY KEY (request_id, company_id)
+);

@@ -1,37 +1,42 @@
-// Date-times are local strings like "2027-04-10T11:30". Never call new Date() on them
-// (the laptop zone would shift them). Format by slicing the string.
+// Display helpers. Date-times are local strings ("2027-04-10T11:30"); they are sliced,
+// never passed through Date, so the browser's time zone cannot shift them.
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-// "2027-04-10T11:30" -> "10 Apr, 11:30"
+export const POLL_MS = 5000;
+export const CAR_TYPES = ['HATCHBACK', 'SEDAN', 'SUV', 'BUS'];
+
+export const inr = (n) => (n === null || n === undefined ? '—' : `₹${Number(n).toLocaleString('en-IN')}`);
+
+export const hhmm = (s) => (s ? s.slice(11, 16) : '—');
+
+// "2027-04-10T11:30" -> "10 Apr 2027, 11:30"
 export function dateTime(s) {
-  if (!s) return '';
-  return `${Number(s.slice(8, 10))} ${MONTHS[Number(s.slice(5, 7)) - 1]}, ${s.slice(11, 16)}`;
+  if (!s) return '—';
+  return `${Number(s.slice(8, 10))} ${MONTHS[Number(s.slice(5, 7)) - 1]} ${s.slice(0, 4)}, ${s.slice(11, 16)}`;
 }
 
-// "2027-04-10T11:30" -> "10 Apr"
-export function dateOnly(s) {
-  return `${Number(s.slice(8, 10))} ${MONTHS[Number(s.slice(5, 7)) - 1]}`;
+// What the user typed -> what is sent. Nothing is corrected here: an empty field goes as null and
+// text that is not a number goes as typed, so the backend decides and answers with its own message.
+export function toNumber(text) {
+  const t = String(text ?? '').trim();
+  if (t === '') return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : t;
 }
 
-// "2027-04-10T11:30" -> "11:30"
-export const timeOnly = (s) => s.slice(11, 16);
-
-// 12000 -> "₹12,000"
-export const inr = (n) => '₹' + Number(n).toLocaleString('en-IN');
-
-// "2 adults, 1 child (age 5)"
-export function people(adults, childAges = []) {
-  const a = `${adults} adult${adults === 1 ? '' : 's'}`;
-  if (!childAges.length) return a;
-  const c = `${childAges.length} child${childAges.length === 1 ? '' : 'ren'}`;
-  return `${a}, ${c} (age ${childAges.join(', ')})`;
+// "5, 9" -> [5, 9]
+export function toAges(text) {
+  return String(text ?? '').split(/[\s,]+/).filter(Boolean).map(toNumber);
 }
 
-// "3 large, 2 small bags"
-export const bags = (large, small) => `${large} large, ${small} small bag${small === 1 ? '' : 's'}`;
+export function party(r) {
+  const kids = r.childAges?.length
+    ? `, ${r.childAges.length} ${r.childAges.length === 1 ? 'child' : 'children'} (age ${r.childAges.join(', ')})`
+    : '';
+  return `${r.adults} ${r.adults === 1 ? 'adult' : 'adults'}${kids}`;
+}
 
-// "SC-3 · SUV · 6 seats · 4L/3S"
-export const car = (v) => `${v.vehicleId} · ${v.type} · ${v.seats} seats · ${v.largeBags}L/${v.smallBags}S bags`;
+export const bags = (r) => `${r.largeBags} large, ${r.smallBags} small`;
 
-// "1234567890" -> "123 456 7890"
-export const bookingNo = (n) => (n ? `${n.slice(0, 3)} ${n.slice(3, 6)} ${n.slice(6)}` : '');
+export const carSpec = (c) => `${c.type} · ${c.seats} seats · ${c.largeBags} large / ${c.smallBags} small bags`;

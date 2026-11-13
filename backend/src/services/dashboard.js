@@ -4,6 +4,7 @@ import { evaluateSupplier, r4Violations } from '../rules/eligibility.js';
 import { getCompany, listBusyTimes } from '../repos/companies.js';
 import { getRequest, listRequests } from '../repos/requests.js';
 import { listCompanyOffers } from '../repos/offers.js';
+import { getInvite, listInvitesForCompany } from '../repos/invites.js';
 import { toRequestObject } from './requests.js';
 
 const carInfo = ({ vehicleId, type, seats, largeBags, smallBags }) => ({ vehicleId, type, seats, largeBags, smallBags });
@@ -37,8 +38,16 @@ export async function listForSupplier(companyId) {
   visible.sort((a, b) =>
     a.request.pickupAt.localeCompare(b.request.pickupAt) || a.request.requestId.localeCompare(b.request.requestId));
 
-  const offers = await listCompanyOffers(companyId, visible.map((x) => x.request.requestId));
-  return visible.map((x) => ({ ...x, myOffers: offers.filter((o) => o.requestId === x.request.requestId) }));
+  const [offers, invites] = await Promise.all([
+    listCompanyOffers(companyId, visible.map((x) => x.request.requestId)),
+    listInvitesForCompany(companyId),
+  ]);
+  const inviteOf = new Map(invites.map((i) => [i.requestId, { status: i.status, reason: i.reason }]));
+  return visible.map((x) => ({
+    ...x,
+    myOffers: offers.filter((o) => o.requestId === x.request.requestId),
+    invite: inviteOf.get(x.request.requestId) ?? null, // the traveler asked this supplier, or it declined
+  }));
 }
 
 // One request with a verdict per car. 403 R4 if this supplier cannot serve it (details are not shown).
@@ -54,6 +63,7 @@ export async function detailForSupplier(companyId, requestId) {
   const busyTimes = await listBusyTimes(company.vehicles.map((x) => x.vehicleId));
   const { vehicles } = evaluateSupplier(request, company, company.vehicles, busyTimes);
   const verdicts = new Map(vehicles.map((x) => [x.vehicleId, x]));
+  const invite = await getInvite(requestId, companyId);
 
   return {
     request,
@@ -63,5 +73,6 @@ export async function detailForSupplier(companyId, requestId) {
       violations: verdicts.get(car.vehicleId).violations,
     })),
     myOffers: await listCompanyOffers(companyId, [requestId]),
+    invite: invite ? { status: invite.status, reason: invite.reason } : null,
   };
 }
