@@ -18,7 +18,11 @@ export default function PersonaPicker() {
       <section className="card">
         <h2>Traveler</h2>
         <p className="muted">Post a ride request and book a taxi.</p>
-        <Link to="/traveler" className="btn">Continue as traveler</Link>
+        <div className="actions">
+          <Link to="/traveler" className="btn">Continue as traveler</Link>
+          <Link to="/traveler/requests" className="btn secondary">My requests</Link>
+          <Link to="/booking" className="btn secondary">Find a booking</Link>
+        </div>
       </section>
 
       <section className="card">

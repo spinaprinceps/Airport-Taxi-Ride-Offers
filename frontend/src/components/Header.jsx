@@ -25,9 +25,22 @@ export default function Header() {
     who = s ? `${s.name} (${companyId})` : companyId;
   } else if (isBooking) who = 'Booking lookup';
 
+  const enc = companyId ? encodeURIComponent(companyId) : '';
+  const links = isTraveler || isBooking
+    ? [['/traveler/new', 'New request'], ['/traveler/requests', 'My requests'], ['/booking', 'Find booking']]
+    : companyId
+      ? [[`/supplier/${enc}?tab=requests`, 'Requests'], [`/supplier/${enc}?tab=offers`, 'My offers'],
+        [`/supplier/${enc}?tab=changes`, 'Changes']]
+      : [];
+
   return (
     <header className="header">
       <Link to="/" className="brand">Airport Taxi Ride Offers</Link>
+      {links.length > 0 && (
+        <nav className="nav">
+          {links.map(([to, label]) => <Link key={to} to={to}>{label}</Link>)}
+        </nav>
+      )}
       <nav className="header-right">
         <span className="who">{who}</span>
         <Link to="/" className="switch">Switch</Link>

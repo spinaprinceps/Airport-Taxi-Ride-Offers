@@ -1,8 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { get } from '../api.js';
+import { useNavigate } from 'react-router-dom';
+import { get, post } from '../api.js';
 import { dateOnly, dateTime, inr, timeOnly } from '../format.js';
 import ErrorList from '../components/ErrorList.jsx';
+import { newKey, recall, remember } from '../useLoad.js';
+
+const CAR_TYPES = ['HATCHBACK', 'SEDAN', 'SUV', 'BUS'];
+
+// Numbers are sent as typed; the backend decides (R1-R3). Empty -> null so the shape error is shown.
+const num = (s) => (String(s).trim() === '' ? null : Number(s));
+function parseAges(s) {
+  const parts = String(s).split(',').map((x) => x.trim()).filter(Boolean);
+  return parts.map((x) => Number(x));
+}
 
 // Slice 1: choose airport, date, flight and hotel, then see the suggested price range.
 // The picker lists every hotel on purpose: a wrong pairing must show the backend's R1 message.
@@ -19,6 +29,50 @@ export default function NewRequest() {
   const [range, setRange] = useState(null);
   const [rangeError, setRangeError] = useState(null);
   const [rangeLoading, setRangeLoading] = useState(false);
+
+  const navigate = useNavigate();
+  const [travelerName, setTravelerName] = useState(recall('travelerName'));
+  const [adults, setAdults] = useState('1');
+  const [childAges, setChildAges] = useState('');
+  const [largeBags, setLargeBags] = useState('1');
+  const [smallBags, setSmallBags] = useState('1');
+  const [pickupAt, setPickupAt] = useState('');
+  const [carType, setCarType] = useState('');
+  const [price, setPrice] = useState('');
+  const [submitError, setSubmitError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [idemKey, setIdemKey] = useState(newKey);
+
+  // Any edit makes it a new request (new idempotency key).
+  useEffect(() => { setIdemKey(newKey()); },
+    [travelerName, flightId, hotelId, adults, childAges, largeBags, smallBags, pickupAt, carType, price]);
+
+  async function submit(e) {
+    e.preventDefault();
+    setSubmitError(null);
+    setSubmitting(true);
+    remember('travelerName', travelerName.trim());
+    try {
+      const body = {
+        travelerName,
+        flightId,
+        hotelId,
+        adults: num(adults),
+        childAges: parseAges(childAges),
+        largeBags: num(largeBags),
+        smallBags: num(smallBags),
+        pickupAt: pickupAt || null,
+        carType: carType || null,
+        priceInr: num(price),
+      };
+      const res = await post('/api/requests', body, { 'Idempotency-Key': idemKey });
+      navigate(`/traveler/requests/${encodeURIComponent(res.request.requestId)}`);
+    } catch (err) {
+      setSubmitError(err);
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   useEffect(() => {
     Promise.all([get('/api/flights'), get('/api/hotels')])
@@ -59,7 +113,12 @@ export default function NewRequest() {
     let current = true;
     setRangeLoading(true);
     get(`/api/price-range?flightId=${encodeURIComponent(flightId)}&hotelId=${encodeURIComponent(hotelId)}`)
-      .then((r) => current && setRange(r))
+      .then((r) => {
+        if (!current) return;
+        setRange(r);
+        // Suggest the middle of the range; the traveler can type anything.
+        setPrice((p) => (p === '' ? String(Math.round((r.priceMinInr + r.priceMaxInr) / 2 / 100) * 100) : p));
+      })
       .catch((e) => current && setRangeError(e))
       .finally(() => current && setRangeLoading(false));
     return () => { current = false; };
@@ -143,6 +202,56 @@ export default function NewRequest() {
         )}
         <ErrorList error={rangeError} />
       </section>
+
+      <form className="card" onSubmit={submit} noValidate>
+        <h2>2. Who is travelling</h2>
+
+        <label>
+          Your name
+          <input value={travelerName} onChange={(e) => setTravelerName(e.target.value)} placeholder="e.g. Menon" />
+        </label>
+
+        <div className="grid-2">
+          <label>
+            Adults
+            <input type="number" inputMode="numeric" value={adults} onChange={(e) => setAdults(e.target.value)} />
+          </label>
+          <label>
+            Child ages <span className="muted hint">comma separated, e.g. 5, 9</span>
+            <input value={childAges} onChange={(e) => setChildAges(e.target.value)} placeholder="none" />
+          </label>
+          <label>
+            Large bags
+            <input type="number" inputMode="numeric" value={largeBags} onChange={(e) => setLargeBags(e.target.value)} />
+          </label>
+          <label>
+            Small bags
+            <input type="number" inputMode="numeric" value={smallBags} onChange={(e) => setSmallBags(e.target.value)} />
+          </label>
+        </div>
+
+        <h2>3. Pickup and price</h2>
+        <div className="grid-2">
+          <label>
+            Pickup time <span className="muted hint">empty = earliest{range ? ` (${dateTime(range.earliestPickupAt)})` : ''}</span>
+            <input type="datetime-local" value={pickupAt} onChange={(e) => setPickupAt(e.target.value)} />
+          </label>
+          <label>
+            Car type
+            <select value={carType} onChange={(e) => setCarType(e.target.value)}>
+              <option value="">Any</option>
+              {CAR_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </label>
+          <label>
+            Your price (₹)
+            <input type="number" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value)} />
+          </label>
+        </div>
+
+        <ErrorList error={submitError} />
+        <button type="submit" disabled={submitting}>{submitting ? 'Posting…' : 'Post request'}</button>
+      </form>
     </>
   );
 }

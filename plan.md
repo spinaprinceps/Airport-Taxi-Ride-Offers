@@ -267,7 +267,8 @@ Test count: **155 passing**.
 ## Next up — after S10
 
 Backend is feature-complete for M1–M7, G1, G2, G5. Remaining:
-1. Frontend (partner): all screens; then the browser "Done when" checks and `docker compose up --build` with `web`.
+1. Frontend: all screens written (S2–S9 on top of partner's S0+S1); `npm run build` clean; full Menon flow passed
+   through the Vite proxy; `web` container serves on :8080 and proxies /api. Still to do: click through in a browser.
 2. Submission checklist (plan §10): last push; `data/` unchanged (verified); zip with source, README,
    docker-compose.yml, Dockerfiles, no node_modules / dist / .env; unzip into a new folder and run the demo once.
 3. Two timed demo rehearsals. Backend live change: edit `MIN_PICKUP_GAP_MIN` in `backend/src/config.js` and show the
