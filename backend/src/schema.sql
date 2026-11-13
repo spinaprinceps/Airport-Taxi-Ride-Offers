@@ -17,9 +17,9 @@ CREATE TABLE IF NOT EXISTS airports (
 
 -- airports.serves_cities, one row per city (R1)
 CREATE TABLE IF NOT EXISTS airport_cities (
-  airport     text NOT NULL REFERENCES airports(code),
-  city        text NOT NULL,
-  PRIMARY KEY (airport, city)
+  airport_code  text NOT NULL REFERENCES airports(code),
+  city          text NOT NULL,
+  PRIMARY KEY (airport_code, city)
 );
 
 CREATE TABLE IF NOT EXISTS flights (
@@ -28,13 +28,13 @@ CREATE TABLE IF NOT EXISTS flights (
   flight_number    text NOT NULL,
   from_airport     text NOT NULL REFERENCES airports(code),
   to_airport       text NOT NULL REFERENCES airports(code),
-  departure_at     timestamp NOT NULL,
-  arrival_at       timestamp NOT NULL,
+  departure_local     timestamp NOT NULL,
+  arrival_local       timestamp NOT NULL,
   stops            int NOT NULL DEFAULT 0,
   duration_minutes int,
   cabin            text
 );
-CREATE INDEX IF NOT EXISTS flights_to_arrival_idx ON flights (to_airport, arrival_at);
+CREATE INDEX IF NOT EXISTS flights_to_arrival_idx ON flights (to_airport, arrival_local);
 
 CREATE TABLE IF NOT EXISTS hotels (
   hotel_id    text PRIMARY KEY,
@@ -60,17 +60,17 @@ CREATE TABLE IF NOT EXISTS routes (
 CREATE TABLE IF NOT EXISTS companies (
   company_id     text PRIMARY KEY,
   name           text NOT NULL,
-  service_from   text NOT NULL CHECK (service_from  ~ '^[0-2][0-9]:[0-5][0-9]$'),
-  service_until  text NOT NULL CHECK (service_until ~ '^[0-2][0-9]:[0-5][0-9]$'),
+  service_from   time NOT NULL,   -- local time of the airport; both ends included (R4)
+  service_until  time NOT NULL,   -- from > until means the window crosses midnight
   rating         numeric,
   sort_order     int NOT NULL   -- position in taxi_companies.json
 );
 
 CREATE TABLE IF NOT EXISTS company_airports (
-  company_id  text NOT NULL REFERENCES companies(company_id),
-  airport     text NOT NULL REFERENCES airports(code),
-  sort_order  int  NOT NULL DEFAULT 0,   -- position in the company's "airports" list
-  PRIMARY KEY (company_id, airport)
+  company_id    text NOT NULL REFERENCES companies(company_id),
+  airport_code  text NOT NULL REFERENCES airports(code),
+  sort_order    int  NOT NULL DEFAULT 0,   -- position in the company's "airports" list
+  PRIMARY KEY (company_id, airport_code)
 );
 
 CREATE TABLE IF NOT EXISTS company_areas (

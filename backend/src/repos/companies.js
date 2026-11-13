@@ -3,7 +3,7 @@ import { query } from '../db.js';
 
 const companySql = `
   SELECT c.company_id, c.name, c.service_from, c.service_until, c.rating,
-         COALESCE((SELECT array_agg(airport ORDER BY sort_order) FROM company_airports
+         COALESCE((SELECT array_agg(airport_code ORDER BY sort_order) FROM company_airports
                     WHERE company_id = c.company_id), '{}') AS airports,
          COALESCE((SELECT json_agg(json_build_object('city', city, 'area', area) ORDER BY city, area)
                      FROM company_areas WHERE company_id = c.company_id), '[]') AS areas,

@@ -156,6 +156,18 @@ only records progress, decisions and deviations.
 
 Test count: **89 passing**.
 
+## Schema = the Eraser data model
+
+- Schema file: `backend/src/schema.sql` (run by `applySchema()` at every boot). `backend/db-init/01-test-db.sql`
+  only creates the empty `taxi_test` database.
+- Data model diagram: https://app.eraser.io/workspace/zB6PjFE34P2GzIlVhPP1?diagram=JKcqFmeCmvXhgkEIOpGO
+- Aligned to the diagram (after S4): `airport_cities.airport_code`, `company_airports.airport_code`,
+  `flights.arrival_local` / `departure_local`, `companies.service_from` / `service_until` are `time`
+  (db.js parses type 1083 → "HH:MM"). Extra columns beyond the diagram: `sort_order` (companies, company_airports,
+  vehicles), airport `lat`/`lng`, flight `stops`/`duration_minutes`/`cabin`, hotel `stars`/`rating`.
+- Schema changes need a fresh DB: `docker compose down -v` then `docker compose up -d --build db api`
+  (CREATE TABLE IF NOT EXISTS does not alter existing tables). The live DB was recreated after the alignment.
+
 ## Implementation decisions (beyond the build plan)
 
 - Timestamps are parsed in `db.js` straight to `"YYYY-MM-DDTHH:MM"` (not the raw PG `"YYYY-MM-DD HH:MM:SS"`),
@@ -174,8 +186,7 @@ Test count: **89 passing**.
   (it shows why per car); the list hides such requests.
 - R7 (own car) is a 403 FORBIDDEN carrying an R7 violation, as the plan's error table puts "not its own" at 403.
 - Offer violations are listed in rule-number order (R3, R4, R5, R6).
-- The live `taxi` DB has test data from the live checks (REQ-1001/1002, offers 1–2); run `docker compose down -v`
-  before the demo.
+- The live `taxi` DB was reset after S4 (fresh data load, no app rows); run `docker compose down -v` again before the demo.
 
 ## Next up — S5 backend (traveler sees taxis, rejects one)
 

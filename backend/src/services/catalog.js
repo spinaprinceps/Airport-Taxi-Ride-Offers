@@ -25,7 +25,7 @@ export async function listFlights() {
     flightNumber: f.flight_number,
     from: f.from_airport,
     to: f.to_airport,
-    arrivalLocal: f.arrival_at,
+    arrivalLocal: f.arrival_local,
   }));
 }
 
@@ -74,7 +74,7 @@ export async function priceRange(flightId, hotelId) {
     driveMinutes: route.drive_minutes,
     priceMinInr: route.price_min_inr,
     priceMaxInr: route.price_max_inr,
-    landingAt: flight.arrival_at,
-    earliestPickupAt: addMinutes(flight.arrival_at, MIN_PICKUP_GAP_MIN),
+    landingAt: flight.arrival_local,
+    earliestPickupAt: addMinutes(flight.arrival_local, MIN_PICKUP_GAP_MIN),
   };
 }

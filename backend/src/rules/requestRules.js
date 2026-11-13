@@ -17,14 +17,14 @@ export function checkAirportServesCity(airport, hotel) {
     `${airport.code} does not serve ${hotel.city}. It serves: ${airport.servesCities.join(', ')}.`);
 }
 
-export const earliestPickup = (flight) => addMinutes(flight.arrival_at, MIN_PICKUP_GAP_MIN);
+export const earliestPickup = (flight) => addMinutes(flight.arrival_local, MIN_PICKUP_GAP_MIN);
 
 // R2: pickup >= landing + MIN_PICKUP_GAP_MIN. Returns a violation or null.
 export function checkPickup(flight, pickupAt, field = 'pickupAt') {
   const earliest = earliestPickup(flight);
   if (parse(pickupAt) >= parse(earliest)) return null;
   return v('R2', field,
-    `Pickup ${pretty(pickupAt)} is too early: the flight lands ${pretty(flight.arrival_at)}, ` +
+    `Pickup ${pretty(pickupAt)} is too early: the flight lands ${pretty(flight.arrival_local)}, ` +
     `so the earliest pickup is ${pretty(earliest)}.`);
 }
 

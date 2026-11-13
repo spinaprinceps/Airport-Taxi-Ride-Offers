@@ -6,7 +6,7 @@ const selectSql = `
   SELECT r.request_id, r.status, r.traveler_name, r.flight_id, r.hotel_id, r.airport, r.city, r.area,
          r.drive_minutes, r.adults, r.child_ages, r.large_bags, r.small_bags, r.pickup_at, r.car_type,
          r.price_inr, r.created_at,
-         f.flight_number, f.airline, f.arrival_at,
+         f.flight_number, f.airline, f.arrival_local,
          h.name AS hotel_name,
          rt.price_min_inr, rt.price_max_inr,
          (SELECT count(*)::int FROM offers o WHERE o.request_id = r.request_id) AS offer_count,

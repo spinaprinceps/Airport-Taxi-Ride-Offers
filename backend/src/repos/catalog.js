@@ -5,7 +5,7 @@ export async function listCompanies() {
   const { rows } = await query(
     `SELECT c.company_id, c.name, c.service_from, c.service_until, c.rating,
             COALESCE(
-              (SELECT array_agg(ca.airport ORDER BY ca.sort_order)
+              (SELECT array_agg(ca.airport_code ORDER BY ca.sort_order)
                  FROM company_airports ca WHERE ca.company_id = c.company_id),
               '{}') AS airports
        FROM companies c
@@ -16,10 +16,10 @@ export async function listCompanies() {
 
 export async function listArrivalFlights(airports) {
   const { rows } = await query(
-    `SELECT flight_id, airline, flight_number, from_airport, to_airport, arrival_at
+    `SELECT flight_id, airline, flight_number, from_airport, to_airport, arrival_local
        FROM flights
       WHERE to_airport = ANY($1)
-      ORDER BY arrival_at, flight_id`,
+      ORDER BY arrival_local, flight_id`,
     [airports],
   );
   return rows;
@@ -34,7 +34,7 @@ export async function listHotels() {
 
 export async function getFlight(flightId, db = { query }) {
   const { rows } = await db.query(
-    `SELECT flight_id, airline, flight_number, from_airport, to_airport, arrival_at
+    `SELECT flight_id, airline, flight_number, from_airport, to_airport, arrival_local
        FROM flights WHERE flight_id = $1`,
     [flightId],
   );
@@ -53,7 +53,7 @@ export async function getHotel(hotelId, db = { query }) {
 export async function getAirport(code, db = { query }) {
   const { rows } = await db.query(
     `SELECT a.code,
-            COALESCE((SELECT array_agg(city ORDER BY city) FROM airport_cities WHERE airport = a.code), '{}')
+            COALESCE((SELECT array_agg(city ORDER BY city) FROM airport_cities WHERE airport_code = a.code), '{}')
               AS serves_cities
        FROM airports a WHERE a.code = $1`,
     [code],

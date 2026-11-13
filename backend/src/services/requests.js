@@ -41,7 +41,7 @@ export function toRequestObject(r) {
       flightNumber: r.flight_number,
       airline: r.airline,
       to: r.airport,
-      arrivalLocal: r.arrival_at,
+      arrivalLocal: r.arrival_local,
     },
     hotel: { hotelId: r.hotel_id, name: r.hotel_name, city: r.city, area: r.area },
     adults: r.adults,

@@ -55,7 +55,8 @@ describe('S0: schema and data load', () => {
   });
 
   it('serves_cities becomes airport_cities rows (Indian airports and ITM have none)', async () => {
-    const { rows } = await pool.query(`SELECT airport, city FROM airport_cities ORDER BY airport, city`);
+    const { rows } = await pool.query(
+      `SELECT airport_code AS airport, city FROM airport_cities ORDER BY airport_code, city`);
     expect(rows).toEqual([
       { airport: 'AUH', city: 'Abu Dhabi' },
       { airport: 'DXB', city: 'Abu Dhabi' },

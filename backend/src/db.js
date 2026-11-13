@@ -4,6 +4,8 @@ import { DATABASE_URL } from './config.js';
 
 // timestamp (no zone, type id 1114): return "2027-04-10T11:30" as is, never a Date.
 pg.types.setTypeParser(1114, (s) => s.slice(0, 16).replace(' ', 'T'));
+// time (1083): "06:00:00" -> "06:00"
+pg.types.setTypeParser(1083, (s) => s.slice(0, 5));
 // bigint / bigserial (20): ids fit in a JS number.
 pg.types.setTypeParser(20, (s) => Number(s));
 // numeric (1700): ratings, distances.

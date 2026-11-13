@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { validateRequest } from '../../src/rules/requestRules.js';
 
-const flight = { flight_id: 'FL-401', to_airport: 'NRT', arrival_at: '2027-04-10T10:30' };
+const flight = { flight_id: 'FL-401', to_airport: 'NRT', arrival_local: '2027-04-10T10:30' };
 const hotel = { hotel_id: 'HTL-TYO-004', city: 'Tokyo', area: 'Ueno' };
 const airport = { code: 'NRT', servesCities: ['Tokyo'] };
 const route = { airport: 'NRT', city: 'Tokyo', area: 'Ueno', drive_minutes: 90, price_min_inr: 10200, price_max_inr: 16800 };

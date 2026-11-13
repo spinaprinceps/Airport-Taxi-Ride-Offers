@@ -36,8 +36,8 @@ export async function loadData(dataDir = DATA_DIR, log = console) {
   );
   const flightRows = flights.map((f) => ({
     ...f,
-    departure_at: local(f.departure_local),
-    arrival_at: local(f.arrival_local),
+    departure_local: local(f.departure_local),
+    arrival_local: local(f.arrival_local),
   }));
 
   // Seed rows: check their links before inserting.
@@ -84,21 +84,21 @@ export async function loadData(dataDir = DATA_DIR, log = console) {
       [json(airports)],
     );
     await db.query(
-      `INSERT INTO airport_cities (airport, city)
+      `INSERT INTO airport_cities (airport_code, city)
        SELECT airport, city FROM jsonb_to_recordset($1::jsonb) AS x(airport text, city text)
        ON CONFLICT DO NOTHING`,
       [json(airportCities)],
     );
     await db.query(
       `INSERT INTO flights (flight_id, airline, flight_number, from_airport, to_airport,
-                            departure_at, arrival_at, stops, duration_minutes, cabin)
-       SELECT flight_id, airline, flight_number, "from", "to", departure_at, arrival_at, stops, duration_minutes, cabin
+                            departure_local, arrival_local, stops, duration_minutes, cabin)
+       SELECT flight_id, airline, flight_number, "from", "to", departure_local, arrival_local, stops, duration_minutes, cabin
          FROM jsonb_to_recordset($1::jsonb)
            AS x(flight_id text, airline text, flight_number text, "from" text, "to" text,
-                departure_at timestamp, arrival_at timestamp, stops int, duration_minutes int, cabin text)
+                departure_local timestamp, arrival_local timestamp, stops int, duration_minutes int, cabin text)
        ON CONFLICT (flight_id) DO UPDATE SET airline = EXCLUDED.airline, flight_number = EXCLUDED.flight_number,
          from_airport = EXCLUDED.from_airport, to_airport = EXCLUDED.to_airport,
-         departure_at = EXCLUDED.departure_at, arrival_at = EXCLUDED.arrival_at,
+         departure_local = EXCLUDED.departure_local, arrival_local = EXCLUDED.arrival_local,
          stops = EXCLUDED.stops, duration_minutes = EXCLUDED.duration_minutes, cabin = EXCLUDED.cabin`,
       [json(flightRows)],
     );
@@ -126,16 +126,16 @@ export async function loadData(dataDir = DATA_DIR, log = console) {
       `INSERT INTO companies (company_id, name, service_from, service_until, rating, sort_order)
        SELECT company_id, name, service_from, service_until, rating, sort_order
          FROM jsonb_to_recordset($1::jsonb)
-           AS x(company_id text, name text, service_from text, service_until text, rating numeric, sort_order int)
+           AS x(company_id text, name text, service_from time, service_until time, rating numeric, sort_order int)
        ON CONFLICT (company_id) DO UPDATE SET name = EXCLUDED.name, service_from = EXCLUDED.service_from,
          service_until = EXCLUDED.service_until, rating = EXCLUDED.rating, sort_order = EXCLUDED.sort_order`,
       [json(companyRows)],
     );
     await db.query(
-      `INSERT INTO company_airports (company_id, airport, sort_order)
+      `INSERT INTO company_airports (company_id, airport_code, sort_order)
        SELECT company_id, airport, sort_order
          FROM jsonb_to_recordset($1::jsonb) AS x(company_id text, airport text, sort_order int)
-       ON CONFLICT (company_id, airport) DO UPDATE SET sort_order = EXCLUDED.sort_order`,
+       ON CONFLICT (company_id, airport_code) DO UPDATE SET sort_order = EXCLUDED.sort_order`,
       [json(companyAirports)],
     );
     await db.query(
