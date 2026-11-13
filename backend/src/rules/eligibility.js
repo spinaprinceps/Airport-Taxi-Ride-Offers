@@ -58,6 +58,22 @@ export function openAtPickup(request, company) {
   return isOpenAt(company.serviceFrom, company.serviceUntil, hhmm(request.pickupAt));
 }
 
+// R4 violations of a supplier for a request (empty = it may serve it).
+export function r4Violations(request, company) {
+  const out = [];
+  if (!worksAtAirport(request, company)) {
+    out.push(v('R4', 'airport', `${company.name} does not work at ${request.flight.to}.`));
+  }
+  if (!drivesToArea(request, company)) {
+    out.push(v('R4', 'area', `${company.name} does not drive to ${request.hotel.city} / ${request.hotel.area}.`));
+  }
+  if (!openAtPickup(request, company)) {
+    out.push(v('R4', 'pickupAt',
+      `${company.name} is closed at ${hhmm(request.pickupAt)} (open ${company.serviceFrom}–${company.serviceUntil}).`));
+  }
+  return out;
+}
+
 export function evaluateSupplier(request, company, vehicles, busyTimes) {
   return {
     worksAtAirport: worksAtAirport(request, company),

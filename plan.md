@@ -53,7 +53,7 @@ only records progress, decisions and deviations.
 | S0 setup | **Done** | Partner | Done-when verified in Docker (backend side): boot loads data, 11 suppliers, restart keeps counts. |
 | S1 catalog | **Done** | Partner | Verified live in Docker: 240 flights, 49 hotels, Menon range, R1 422. Browser "Done when" needs frontend. |
 | S2 requests | **Done** | Partner | Verified live: Menon REQ-1001 → 2 suppliers; ₹9,000 → 422 R3; 7 adults → 0 + reason; survives restart. |
-| S3 dashboard | Not started | | |
+| S3 dashboard | **Done** | Partner | Verified live: Sakura sees REQ-1001 with [SC-3]; per-car verdicts; Narita list empty, detail 403 R4. |
 | S4 offers | Not started | | |
 | S5 offer list / reject | Not started | | |
 | S6 booking | Not started | | |
@@ -130,7 +130,18 @@ only records progress, decisions and deviations.
 - `routes/requests.js` — `POST /api/requests`, `GET /api/requests?traveler=`, `GET /api/requests/:requestId`.
 - Tests: `test/rules/validateRequest.test.js`, `test/rules/eligibility.test.js`, `test/api/s2-requests.test.js`.
 
-Test count: **61 passing**.
+### S3 — supplier dashboard (not yet committed)
+- `rules/eligibility.js` → added `r4Violations(request, company)`: "X does not work at NRT." (field airport) /
+  "X does not drive to Tokyo / Ueno." (area) / "X is closed at 22:30 (open 07:00–22:00)." (pickupAt).
+- `repos/offers.js` → `toOffer(row)`, `listCompanyOffers(companyId, requestIds?)` (oldest first).
+- `services/dashboard.js` → `requireCompany(id)` (404), `listForSupplier(companyId)` (OPEN only, R4 ok and ≥1 car ok,
+  sorted by pickup then id; `fittingFreeVehicles` in car file order; `myOffers` from offers table),
+  `detailForSupplier(companyId, requestId)` (404s; 403 FORBIDDEN with R4 violations, no details; otherwise every car
+  with `ok` + `violations`, plus `myOffers`).
+- `routes/dashboard.js` → `GET /api/suppliers/:companyId/requests`, `GET /api/suppliers/:companyId/requests/:requestId`.
+- Tests: `test/api/s3-dashboard.test.js` (14).
+
+Test count: **75 passing**.
 
 ## Implementation decisions (beyond the build plan)
 
@@ -145,13 +156,15 @@ Test count: **61 passing**.
 - Serveability is computed live on every read (busy times change). For a BOOKED request it is
   `{ supplierCount: null, reason: null }`.
 - Seed REQ-0002 (KIX → Osaka / Namba, SEDAN) has 0 suppliers by the data: Kansai Airport Taxi has no SEDAN.
+- Supplier dashboard is sorted by pickup time (earliest first); the plan does not say.
+- Detail page: 403 only for R4. A supplier that passes R4 sees the detail even when no car fits or is free
+  (it shows why per car); the list hides such requests.
 - The live `taxi` DB has test requests REQ-1001/1002 from the S2 check; run `docker compose down -v` before the demo.
 
-## Next up — S3 backend (supplier dashboard, R4–R6)
+## Next up — S4 backend (assign a car, R7)
 
-1. Tests first (plan §7 Slice 3 list): Sakura sees Menon with fittingFreeVehicles [SC-3]; Sakura detail per-car
-   verdicts (SC-1 R5, SC-4 R5, SC-2 R6 RIDE-0001, SC-3 ok); Edo sees [EP-1, EP-2]; Narita Star not listed and detail
-   → 403 R4 "does not drive to Tokyo / Ueno"; Haneda Family not listed; carType BUS → neither; pickup 14:00 → SC-2 free;
-   seed REQ-0001 on Sakura's dashboard.
-2. `services/dashboard.js` (reuse `evaluateSupplier`, `loadCompanies`/`getCompany`, `listBusyTimes`,
-   `listRequests({status:'OPEN'})`, `toRequestObject`), `routes/dashboard.js`. `myOffers` = [] until S4.
+1. Tests first (plan §7 Slice 4 list): SC-3 @12500 → 201; SC-2 → 422 R6; SC-1 @17000 → 422 R5 + R3;
+   10200/16800 ok, 10199 → R3; EP-2 by Sakura → 403; Narita NS-2 → 422 R4; SC-3 twice → 409; Edo EP-1 + EP-2 → two
+   offers (G1); carType SUV + EP-1 → 422 R5 (G2). Plus `GET /api/suppliers/:companyId/offers`.
+2. `rules/offerRules.js` → `validateOffer(...)` reusing `r4Violations`, `checkVehicle`, `checkPrice`.
+   `services/offers.js` (ownership 403, request OPEN 409, unique `offers_request_vehicle_uniq` → 409), `routes/offers.js`.

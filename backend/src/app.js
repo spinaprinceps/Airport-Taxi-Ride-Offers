@@ -3,6 +3,7 @@ import { ZodError } from 'zod';
 import { AppError } from './errors.js';
 import { catalogRouter } from './routes/catalog.js';
 import { requestsRouter } from './routes/requests.js';
+import { dashboardRouter } from './routes/dashboard.js';
 
 export function createApp() {
   const app = express();
@@ -13,6 +14,7 @@ export function createApp() {
   // Feature routers are mounted here slice by slice.
   app.use('/api', catalogRouter);
   app.use('/api', requestsRouter);
+  app.use('/api', dashboardRouter);
 
   app.use('/api', (req, res) => {
     res.status(404).json({ code: 'NOT_FOUND', message: `No route ${req.method} ${req.originalUrl}`, violations: [] });
