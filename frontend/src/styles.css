@@ -159,6 +159,7 @@ h3 { font-size: 15px; margin: 0 0 8px; }
 .title-row h3 { margin: 0; }
 .jump { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; margin: 8px 0 16px; background: var(--bg); border-bottom: 1px solid var(--line); }
 .jump button { font-size: 14px; padding: 5px 12px; border-radius: 999px; }
+.jump button.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 main section[id] { scroll-margin-top: 60px; }
 .request-card[id] { scroll-margin-top: 60px; }
 .panel { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }

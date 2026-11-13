@@ -55,7 +55,7 @@ export default function MyRequests({ name, focus, onOpenBooking }) {
     <>
       <ErrorBox error={error} />
       {loading && !data ? <Loading /> : null}
-      {data && data.length === 0 ? <p className="empty">No requests for “{name}” yet. Post one above.</p> : null}
+      {data && data.length === 0 ? <p className="empty">No requests for “{name}” yet. Post one under “New request”.</p> : null}
       {(data ?? []).map((view) => {
         const r = view.request;
         const isOpen = opened.has(r.requestId);
