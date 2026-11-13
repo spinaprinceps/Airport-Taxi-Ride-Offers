@@ -5,7 +5,8 @@ import { query } from '../db.js';
 const selectSql = `
   SELECT r.request_id, r.status, r.traveler_name, r.flight_id, r.hotel_id, r.airport, r.city, r.area,
          r.drive_minutes, r.adults, r.child_ages, r.large_bags, r.small_bags, r.pickup_at, r.car_type,
-         r.price_inr, r.created_at,
+         r.price_inr, r.created_at, r.share_ok,
+         (SELECT m.group_id FROM ride_group_members m WHERE m.request_id = r.request_id) AS group_id,
          f.flight_number, f.airline, f.arrival_local,
          h.name AS hotel_name,
          rt.price_min_inr, rt.price_max_inr,
@@ -49,13 +50,13 @@ export async function insertRequest(row, db = { query }) {
   const { rows } = await db.query(
     `INSERT INTO ride_requests (request_id, source, idempotency_key, traveler_name, flight_id, hotel_id,
                                 airport, city, area, drive_minutes, adults, child_ages, large_bags, small_bags,
-                                pickup_at, car_type, price_inr, status)
+                                pickup_at, car_type, price_inr, status, share_ok)
      VALUES ('REQ-' || nextval('ride_request_seq'), 'APP', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-             $13, $14, $15, 'OPEN')
+             $13, $14, $15, 'OPEN', $16)
      RETURNING request_id`,
     [row.idempotencyKey, row.travelerName, row.flightId, row.hotelId, row.airport, row.city, row.area,
       row.driveMinutes, row.adults, row.childAges, row.largeBags, row.smallBags, row.pickupAt, row.carType,
-      row.priceInr],
+      row.priceInr, row.shareOk ?? false],
   );
   return rows[0].request_id;
 }

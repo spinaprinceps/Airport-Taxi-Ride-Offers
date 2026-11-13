@@ -12,14 +12,16 @@ export async function getBookingSummaryRow(bookingNumber, db = { query }) {
             h.name AS hotel_name,
             c.name AS company_name,
             v.type AS vehicle_type, v.seats AS vehicle_seats,
-            vb.end_at AS busy_until
+            vb.end_at AS busy_until, o.group_id
        FROM bookings b
+       JOIN offers o ON o.offer_id = b.offer_id
        JOIN ride_requests r ON r.request_id = b.request_id
        JOIN flights f ON f.flight_id = b.flight_id
        JOIN hotels h ON h.hotel_id = r.hotel_id
        JOIN companies c ON c.company_id = b.company_id
        JOIN vehicles v ON v.vehicle_id = b.vehicle_id
-       LEFT JOIN vehicle_busy_times vb ON vb.booking_number = b.booking_number
+       LEFT JOIN vehicle_busy_times vb
+              ON vb.booking_number = b.booking_number OR (o.group_id IS NOT NULL AND vb.group_id = o.group_id)
       WHERE b.booking_number = $1`,
     [bookingNumber],
   );
@@ -30,8 +32,9 @@ export async function getBookingSummaryRow(bookingNumber, db = { query }) {
 export async function lockBooking(bookingNumber, db) {
   const { rows } = await db.query(
     `SELECT b.booking_number, b.request_id, b.company_id, b.vehicle_id, b.flight_id, b.pickup_at,
-            r.airport, r.drive_minutes
+            r.airport, r.drive_minutes, o.group_id
        FROM bookings b JOIN ride_requests r ON r.request_id = b.request_id
+       JOIN offers o ON o.offer_id = b.offer_id
       WHERE b.booking_number = $1
         FOR UPDATE OF b`,
     [bookingNumber],
@@ -40,6 +43,7 @@ export async function lockBooking(bookingNumber, db) {
   return r ? {
     bookingNumber: r.booking_number, requestId: r.request_id, companyId: r.company_id, vehicleId: r.vehicle_id,
     flightId: r.flight_id, pickupAt: r.pickup_at, airport: r.airport, driveMinutes: r.drive_minutes,
+    groupId: r.group_id === null ? null : Number(r.group_id),
   } : null;
 }
 
@@ -70,11 +74,11 @@ export async function insertBooking(b, db) {
   return rowCount === 1;
 }
 
-export async function insertBookingBusyTime({ vehicleId, startAt, endAt, bookingNumber }, db) {
+export async function insertBookingBusyTime({ vehicleId, startAt, endAt, bookingNumber, groupId = null }, db) {
   await db.query(
-    `INSERT INTO vehicle_busy_times (vehicle_id, start_at, end_at, source, booking_number)
-     VALUES ($1, $2, $3, 'BOOKING', $4)`,
-    [vehicleId, startAt, endAt, bookingNumber],
+    `INSERT INTO vehicle_busy_times (vehicle_id, start_at, end_at, source, booking_number, group_id)
+     VALUES ($1, $2, $3, 'BOOKING', $4, $5)`,
+    [vehicleId, startAt, endAt, bookingNumber, groupId],
   );
 }
 

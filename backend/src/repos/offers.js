@@ -8,12 +8,13 @@ export const toOffer = (r) => ({
   vehicleId: r.vehicle_id,
   priceInr: r.price_inr,
   status: r.status,
+  groupId: r.group_id === null || r.group_id === undefined ? null : Number(r.group_id),
 });
 
 // Offers of one supplier, optionally only on some requests. Oldest first.
 export async function listCompanyOffers(companyId, requestIds = null, db = { query }) {
   const { rows } = await db.query(
-    `SELECT offer_id, request_id, company_id, vehicle_id, price_inr, status, created_at
+    `SELECT offer_id, request_id, company_id, vehicle_id, price_inr, status, group_id, created_at
        FROM offers
       WHERE company_id = $1 AND ($2::text[] IS NULL OR request_id = ANY($2))
       ORDER BY created_at, offer_id`,
@@ -26,7 +27,7 @@ export async function listCompanyOffers(companyId, requestIds = null, db = { que
 export async function listCompanyOffersWithRequest(companyId, db = { query }) {
   const { rows } = await db.query(
     `SELECT o.offer_id, o.request_id, r.traveler_name, r.pickup_at, o.vehicle_id, o.price_inr, o.status,
-            b.booking_number
+            o.group_id, b.booking_number
        FROM offers o
        JOIN ride_requests r ON r.request_id = o.request_id
        LEFT JOIN bookings b ON b.offer_id = o.offer_id
@@ -42,6 +43,7 @@ export async function listCompanyOffersWithRequest(companyId, db = { query }) {
     vehicleId: r.vehicle_id,
     priceInr: r.price_inr,
     status: r.status,
+    groupId: r.group_id === null ? null : Number(r.group_id),
     bookingNumber: r.booking_number,
   }));
 }
@@ -50,8 +52,14 @@ export async function listCompanyOffersWithRequest(companyId, db = { query }) {
 export async function listRequestOffers(requestId, { desc = false, type = null } = {}, db = { query }) {
   const { rows } = await db.query(
     `SELECT o.offer_id, o.company_id, c.name AS company_name, c.rating, o.vehicle_id,
-            v.type, v.seats, v.large_bags, v.small_bags, o.price_inr, o.status
+            v.type, v.seats, v.large_bags, v.small_bags, o.price_inr, o.status, o.group_id,
+            g.pickup_at AS group_pickup_at,
+            other.adults AS other_adults, cardinality(other.child_ages) AS other_children,
+            other.large_bags AS other_large_bags, other.small_bags AS other_small_bags
        FROM offers o
+       LEFT JOIN ride_groups g ON g.group_id = o.group_id
+       LEFT JOIN ride_group_members om ON om.group_id = o.group_id AND om.request_id <> o.request_id
+       LEFT JOIN ride_requests other ON other.request_id = om.request_id
        JOIN companies c ON c.company_id = o.company_id
        JOIN vehicles v ON v.vehicle_id = o.vehicle_id
       WHERE o.request_id = $1 AND ($2::text IS NULL OR v.type = $2)
@@ -70,13 +78,21 @@ export async function listRequestOffers(requestId, { desc = false, type = null }
     smallBags: r.small_bags,
     priceInr: r.price_inr,
     status: r.status,
+    groupId: r.group_id === null ? null : Number(r.group_id),
+    shared: r.group_id === null ? null : {
+      pickupAt: r.group_pickup_at,
+      otherParty: {
+        adults: r.other_adults, children: r.other_children,
+        largeBags: r.other_large_bags, smallBags: r.other_small_bags,
+      },
+    },
   }));
 }
 
 // Locks one offer row (FOR UPDATE) inside a transaction.
 export async function lockOffer(offerId, db) {
   const { rows } = await db.query(
-    `SELECT offer_id, request_id, company_id, vehicle_id, price_inr, status
+    `SELECT offer_id, request_id, company_id, vehicle_id, price_inr, status, group_id
        FROM offers WHERE offer_id = $1 FOR UPDATE`,
     [offerId],
   );
@@ -86,7 +102,7 @@ export async function lockOffer(offerId, db) {
 export async function setOfferStatus(offerId, status, db = { query }) {
   const { rows } = await db.query(
     `UPDATE offers SET status = $2, decided_at = (now() AT TIME ZONE 'UTC') WHERE offer_id = $1
-     RETURNING offer_id, request_id, company_id, vehicle_id, price_inr, status`,
+     RETURNING offer_id, request_id, company_id, vehicle_id, price_inr, status, group_id`,
     [offerId, status],
   );
   return toOffer(rows[0]);
@@ -98,12 +114,12 @@ export async function offerExists(requestId, vehicleId, db = { query }) {
   return rows.length > 0;
 }
 
-export async function insertOffer({ requestId, companyId, vehicleId, priceInr }, db = { query }) {
+export async function insertOffer({ requestId, companyId, vehicleId, priceInr, groupId = null }, db = { query }) {
   const { rows } = await db.query(
-    `INSERT INTO offers (request_id, company_id, vehicle_id, price_inr, status)
-     VALUES ($1, $2, $3, $4, 'OFFERED')
-     RETURNING offer_id, request_id, company_id, vehicle_id, price_inr, status`,
-    [requestId, companyId, vehicleId, priceInr],
+    `INSERT INTO offers (request_id, company_id, vehicle_id, price_inr, status, group_id)
+     VALUES ($1, $2, $3, $4, 'OFFERED', $5)
+     RETURNING offer_id, request_id, company_id, vehicle_id, price_inr, status, group_id`,
+    [requestId, companyId, vehicleId, priceInr, groupId],
   );
   return toOffer(rows[0]);
 }

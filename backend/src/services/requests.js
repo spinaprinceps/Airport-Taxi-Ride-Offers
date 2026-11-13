@@ -28,6 +28,7 @@ export const requestBody = z.object({
   pickupAt: localDateTime.nullable().optional().default(null),
   carType: z.enum(CAR_TYPES).nullable().optional().default(null),
   priceInr: int(),
+  shareOk: z.boolean().optional().default(false),
 });
 
 // DB row (repos/requests.js) -> the request object of the API contract.
@@ -56,6 +57,8 @@ export function toRequestObject(r) {
     priceMinInr: r.price_min_inr,
     priceMaxInr: r.price_max_inr,
     driveMinutes: r.drive_minutes,
+    shareOk: r.share_ok ?? false,
+    groupId: r.group_id === null || r.group_id === undefined ? null : Number(r.group_id),
   };
 }
 

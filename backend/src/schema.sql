@@ -189,6 +189,36 @@ CREATE UNIQUE INDEX IF NOT EXISTS cr_one_pending_per_booking
 
 -- A traveler asks one supplier for a request (REQUESTED), or a supplier declines a request (DECLINED).
 -- This never decides who sees a request: that is R4 only.
+-- ---------------------------------------------------------------------------
+-- Shared rides: two requests on the same flight to the same area share one car.
+-- ---------------------------------------------------------------------------
+ALTER TABLE ride_requests ADD COLUMN IF NOT EXISTS share_ok boolean NOT NULL DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS ride_groups (
+  group_id    bigserial PRIMARY KEY,
+  flight_id   text NOT NULL REFERENCES flights(flight_id),
+  airport     text NOT NULL,
+  city        text NOT NULL,
+  area        text NOT NULL,
+  pickup_at   timestamp NOT NULL,   -- the later pickup of the two
+  created_at  timestamp NOT NULL DEFAULT (clock_timestamp() AT TIME ZONE 'UTC')
+);
+
+-- A request is in at most one group.
+CREATE TABLE IF NOT EXISTS ride_group_members (
+  group_id    bigint NOT NULL REFERENCES ride_groups(group_id),
+  request_id  text NOT NULL UNIQUE REFERENCES ride_requests(request_id),
+  PRIMARY KEY (group_id, request_id)
+);
+
+-- A shared offer = one offer row per family, both with the same group_id.
+ALTER TABLE offers ADD COLUMN IF NOT EXISTS group_id bigint REFERENCES ride_groups(group_id);
+
+-- A shared ride has ONE busy row for the whole group (created by the first booking, joined by the second).
+ALTER TABLE vehicle_busy_times ADD COLUMN IF NOT EXISTS group_id bigint REFERENCES ride_groups(group_id);
+CREATE UNIQUE INDEX IF NOT EXISTS vehicle_busy_one_per_group
+  ON vehicle_busy_times (group_id) WHERE group_id IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS request_invites (
   request_id  text NOT NULL REFERENCES ride_requests(request_id),
   company_id  text NOT NULL REFERENCES companies(company_id),

@@ -58,7 +58,7 @@ export async function lockVehicle(vehicleId, db) {
 // All busy times (seed rides + bookings), optionally only for some cars.
 export async function listBusyTimes(vehicleIds = null, db = { query }) {
   const { rows } = await db.query(
-    `SELECT vehicle_id, start_at, end_at, source, ride_id, booking_number
+    `SELECT vehicle_id, start_at, end_at, source, ride_id, booking_number, group_id
        FROM vehicle_busy_times
       WHERE $1::text[] IS NULL OR vehicle_id = ANY($1)
       ORDER BY vehicle_id, start_at`,
@@ -71,5 +71,6 @@ export async function listBusyTimes(vehicleIds = null, db = { query }) {
     source: r.source,
     rideId: r.ride_id,
     bookingNumber: r.booking_number,
+    groupId: r.group_id === null ? null : Number(r.group_id),
   }));
 }

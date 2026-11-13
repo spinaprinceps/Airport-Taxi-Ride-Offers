@@ -36,6 +36,9 @@ export async function submitChange(rawNumber, rawBody) {
   return withTransaction(async (db) => {
     const booking = await lockBooking(bookingNumber, db);
     if (!booking) throw notFound('Booking not found');
+    if (booking.groupId !== null) {
+      throw conflict('A shared ride cannot change flight or pickup: it would move the other family too.');
+    }
     if (await repo.hasPendingChange(bookingNumber, db)) {
       throw conflict(`Booking ${bookingNumber} already has a pending change request.`);
     }

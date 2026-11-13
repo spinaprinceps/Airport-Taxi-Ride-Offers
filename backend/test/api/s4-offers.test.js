@@ -32,7 +32,7 @@ describe('POST /api/suppliers/:companyId/requests/:requestId/offers', () => {
     expect(res.status).toBe(201);
     expect(res.body).toEqual({
       offerId: expect.any(Number), requestId: menon, companyId: 'TX-JP-01',
-      vehicleId: 'SC-3', priceInr: 12500, status: 'OFFERED',
+      vehicleId: 'SC-3', priceInr: 12500, status: 'OFFERED', groupId: null,
     });
   });
 
@@ -133,7 +133,7 @@ describe('GET /api/suppliers/:companyId/offers', () => {
     expect(res.body.slice(0, 2).map((o) => o.vehicleId)).toEqual(['EP-2', 'EP-1']);
     expect(res.body[0]).toEqual({
       offerId: expect.any(Number), requestId: menon, travelerName: 'Menon family',
-      pickupAt: '2027-04-10T11:30', vehicleId: 'EP-2', priceInr: 11800, status: 'OFFERED', bookingNumber: null,
+      pickupAt: '2027-04-10T11:30', vehicleId: 'EP-2', priceInr: 11800, status: 'OFFERED', groupId: null, bookingNumber: null,
     });
   });
 

@@ -9,6 +9,8 @@ import { getRequest, lockRequest } from '../repos/requests.js';
 import * as repo from '../repos/offers.js';
 import { requireCompany } from './dashboard.js';
 import { toRequestObject, CAR_TYPES } from './requests.js';
+import { BUSY_DRIVE_FACTOR } from '../config.js';
+import { addMinutes } from '../time.js';
 
 const offerBody = z.object({
   vehicleId: z.string().trim().min(1).max(50),
@@ -65,10 +67,15 @@ export async function listRequestOffers(requestId, { sort = 'price_asc', type } 
   const offers = await repo.listRequestOffers(requestId, { desc: SORTS[sort], type: type ?? null });
   const busyTimes = (await listBusyTimes([...new Set(offers.map((o) => o.vehicleId))]))
     .filter((b) => !row.booking_number || b.bookingNumber !== row.booking_number);
-  return offers.map((o) => ({
-    ...o,
-    vehicleFreeNow: !findClash(o.vehicleId, request.pickupAt, request.busyUntil, busyTimes),
-  }));
+  return offers.map((o) => {
+    if (o.groupId === null) {
+      return { ...o, vehicleFreeNow: !findClash(o.vehicleId, request.pickupAt, request.busyUntil, busyTimes) };
+    }
+    // Shared offer: the group's window; the group's own busy time (the other family booked) is not a clash.
+    const until = addMinutes(o.shared.pickupAt, BUSY_DRIVE_FACTOR * request.driveMinutes);
+    const others = busyTimes.filter((b) => b.groupId !== o.groupId);
+    return { ...o, vehicleFreeNow: !findClash(o.vehicleId, o.shared.pickupAt, until, others) };
+  });
 }
 
 export const parseOfferId = (raw) => (/^\d{1,15}$/.test(String(raw)) ? Number(raw) : null);

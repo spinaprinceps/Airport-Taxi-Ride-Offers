@@ -38,7 +38,7 @@ describe('GET /api/bookings/:bookingNumber', () => {
       vehicle: { vehicleId: 'SC-3', type: 'SUV', seats: 6 },
       priceInr: 12500,
       adults: 2, childAges: [6], largeBags: 3, smallBags: 2,
-      changeRequests: [],
+      shared: null, changeRequests: [],
     });
   });
 

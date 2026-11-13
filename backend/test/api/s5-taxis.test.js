@@ -41,7 +41,7 @@ describe('GET /api/requests/:requestId/offers', () => {
     expect(res.body[0]).toEqual({
       offerId: ep2, companyId: 'TX-JP-03', companyName: 'Edo Premium Cars', rating: 4.8, // the data file's value (the plan's example says 4.6)
       vehicleId: 'EP-2', type: 'SUV', seats: 6, largeBags: 3, smallBags: 3,
-      priceInr: 11800, status: 'OFFERED', vehicleFreeNow: true,
+      priceInr: 11800, status: 'OFFERED', vehicleFreeNow: true, groupId: null, shared: null,
     });
   });
 
@@ -87,7 +87,7 @@ describe('POST /api/offers/:offerId/reject', () => {
     const res = await reject(ep2);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
-      offerId: ep2, requestId: menon, companyId: 'TX-JP-03', vehicleId: 'EP-2', priceInr: 11800, status: 'REJECTED',
+      offerId: ep2, requestId: menon, companyId: 'TX-JP-03', vehicleId: 'EP-2', priceInr: 11800, status: 'REJECTED', groupId: null,
     });
     const req = await request(app).get(`/api/requests/${menon}`);
     expect(req.body.request.status).toBe('OPEN');
