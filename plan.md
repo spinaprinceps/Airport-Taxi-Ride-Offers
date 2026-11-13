@@ -54,7 +54,7 @@ only records progress, decisions and deviations.
 | S1 catalog | **Done** | Partner | Verified live in Docker: 240 flights, 49 hotels, Menon range, R1 422. Browser "Done when" needs frontend. |
 | S2 requests | **Done** | Partner | Verified live: Menon REQ-1001 → 2 suppliers; ₹9,000 → 422 R3; 7 adults → 0 + reason; survives restart. |
 | S3 dashboard | **Done** | Partner | Verified live: Sakura sees REQ-1001 with [SC-3]; per-car verdicts; Narita list empty, detail 403 R4. |
-| S4 offers | Not started | | |
+| S4 offers | **Done** | Partner | Verified live on REQ-1001: SC-2 → 422 R6; SC-3 ₹12,500 → offer 1; Edo EP-2 ₹11,800 → offer 2. |
 | S5 offer list / reject | Not started | | |
 | S6 booking | Not started | | |
 | S7 booking summary | Not started | | |
@@ -141,7 +141,20 @@ only records progress, decisions and deviations.
 - `routes/dashboard.js` → `GET /api/suppliers/:companyId/requests`, `GET /api/suppliers/:companyId/requests/:requestId`.
 - Tests: `test/api/s3-dashboard.test.js` (14).
 
-Test count: **75 passing**.
+### S4 — assign a car (not yet committed)
+- `rules/offerRules.js` → `checkOwnership(company, vehicle, ownerName)` (R7: "EP-2 belongs to Edo Premium Cars, not
+  Sakura Cabs."), `validateOffer(request, company, vehicle, busyTimes, priceInr)` → violations in order R3, R4, R5, R6.
+- `repos/companies.js` → `getVehicle(id)` (with `companyName`). `repos/requests.js` → `lockRequest(id, 'SHARE'|'UPDATE', db)`.
+- `repos/offers.js` → `offerExists`, `insertOffer`, `listCompanyOffersWithRequest` (My offers, newest first, with
+  `bookingNumber` via LEFT JOIN bookings).
+- `services/offers.js` → `createOffer(companyId, requestId, body)` in one transaction with the request row
+  `FOR SHARE` (so S6's `FOR UPDATE` on the request serializes against it). Check order: body shape 400 → supplier 404
+  → request 404 → car 404 → R7 403 → not OPEN 409 → already offered 409 → R3–R6 422 → insert (23505
+  `offers_request_vehicle_uniq` → 409). `listSupplierOffers(companyId)`.
+- `routes/offers.js` → `POST /api/suppliers/:companyId/requests/:requestId/offers`, `GET /api/suppliers/:companyId/offers`.
+- Tests: `test/api/s4-offers.test.js` (14).
+
+Test count: **89 passing**.
 
 ## Implementation decisions (beyond the build plan)
 
@@ -159,12 +172,15 @@ Test count: **75 passing**.
 - Supplier dashboard is sorted by pickup time (earliest first); the plan does not say.
 - Detail page: 403 only for R4. A supplier that passes R4 sees the detail even when no car fits or is free
   (it shows why per car); the list hides such requests.
-- The live `taxi` DB has test requests REQ-1001/1002 from the S2 check; run `docker compose down -v` before the demo.
+- R7 (own car) is a 403 FORBIDDEN carrying an R7 violation, as the plan's error table puts "not its own" at 403.
+- Offer violations are listed in rule-number order (R3, R4, R5, R6).
+- The live `taxi` DB has test data from the live checks (REQ-1001/1002, offers 1–2); run `docker compose down -v`
+  before the demo.
 
-## Next up — S4 backend (assign a car, R7)
+## Next up — S5 backend (traveler sees taxis, rejects one)
 
-1. Tests first (plan §7 Slice 4 list): SC-3 @12500 → 201; SC-2 → 422 R6; SC-1 @17000 → 422 R5 + R3;
-   10200/16800 ok, 10199 → R3; EP-2 by Sakura → 403; Narita NS-2 → 422 R4; SC-3 twice → 409; Edo EP-1 + EP-2 → two
-   offers (G1); carType SUV + EP-1 → 422 R5 (G2). Plus `GET /api/suppliers/:companyId/offers`.
-2. `rules/offerRules.js` → `validateOffer(...)` reusing `r4Violations`, `checkVehicle`, `checkPrice`.
-   `services/offers.js` (ownership 403, request OPEN 409, unique `offers_request_vehicle_uniq` → 409), `routes/offers.js`.
+1. Tests first (plan §8 Slice 5 list): `GET /api/requests/:id/offers` default price_asc (EP-2 11800 then SC-3 12500),
+   `price_desc` reverses; `type=SUV` filters; equal prices sort by creation time; `vehicleFreeNow` from R6;
+   `POST /api/offers/:offerId/reject` → REJECTED, request stays OPEN, other offer stays OFFERED; repeat → 200 unchanged;
+   409 when BOOKED / NOT_CHOSEN.
+2. Reject inside a transaction with `SELECT … FOR UPDATE` on the offer.

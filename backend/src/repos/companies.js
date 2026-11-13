@@ -34,6 +34,21 @@ export async function getCompany(companyId, db = { query }) {
   return rows[0] ? toCompany(rows[0]) : null;
 }
 
+// One car with its owner's name.
+export async function getVehicle(vehicleId, db = { query }) {
+  const { rows } = await db.query(
+    `SELECT v.vehicle_id, v.company_id, v.type, v.seats, v.large_bags, v.small_bags, c.name AS company_name
+       FROM vehicles v JOIN companies c ON c.company_id = v.company_id
+      WHERE v.vehicle_id = $1`,
+    [vehicleId],
+  );
+  const r = rows[0];
+  return r ? {
+    vehicleId: r.vehicle_id, companyId: r.company_id, companyName: r.company_name,
+    type: r.type, seats: r.seats, largeBags: r.large_bags, smallBags: r.small_bags,
+  } : null;
+}
+
 // All busy times (seed rides + bookings), optionally only for some cars.
 export async function listBusyTimes(vehicleIds = null, db = { query }) {
   const { rows } = await db.query(

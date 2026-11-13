@@ -21,6 +21,13 @@ export async function getRequest(requestId, db = { query }) {
   return rows[0] ?? null;
 }
 
+// Locks the request row inside a transaction; returns its status or null. mode: 'SHARE' | 'UPDATE'.
+export async function lockRequest(requestId, mode, db) {
+  const lock = mode === 'UPDATE' ? 'FOR UPDATE' : 'FOR SHARE';
+  const { rows } = await db.query(`SELECT status FROM ride_requests WHERE request_id = $1 ${lock}`, [requestId]);
+  return rows[0]?.status ?? null;
+}
+
 export async function findIdByIdempotencyKey(key, db = { query }) {
   const { rows } = await db.query(`SELECT request_id FROM ride_requests WHERE idempotency_key = $1`, [key]);
   return rows[0]?.request_id ?? null;
