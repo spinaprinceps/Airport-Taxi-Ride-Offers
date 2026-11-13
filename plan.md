@@ -52,7 +52,7 @@ only records progress, decisions and deviations.
 | --- | --- | --- | --- |
 | S0 setup | **Done** | Partner | Done-when verified in Docker (backend side): boot loads data, 11 suppliers, restart keeps counts. |
 | S1 catalog | **Done** | Partner | Verified live in Docker: 240 flights, 49 hotels, Menon range, R1 422. Browser "Done when" needs frontend. |
-| S2 requests | Pure rules done early | | `hours.js`, `intervals.js` + tests. |
+| S2 requests | **Done** | Partner | Verified live: Menon REQ-1001 → 2 suppliers; ₹9,000 → 422 R3; 7 adults → 0 + reason; survives restart. |
 | S3 dashboard | Not started | | |
 | S4 offers | Not started | | |
 | S5 offer list / reject | Not started | | |
@@ -107,11 +107,30 @@ only records progress, decisions and deviations.
   optional `db` (a transaction client).
 - Tests: `test/rules/requestRules.test.js`, `test/api/s1-catalog.test.js`.
 
-### S2 pure rules (built early, while waiting for data) — not yet committed
-- `src/rules/hours.js` — `isOpenAt(from, until, hhmm)`, inclusive, handles midnight crossing, accepts HH:MM:SS.
-- `src/rules/intervals.js` — `overlaps(aStart, aEnd, bStart, bEnd)`, half-open.
+### S2 — post the request (not yet committed)
+- `rules/hours.js` — `isOpenAt(from, until, hhmm)`, inclusive, midnight crossing.
+- `rules/intervals.js` — `overlaps(aStart, aEnd, bStart, bEnd)`, half-open.
+- `rules/requestRules.js` — `inr(n)` (₹10,200), `earliestPickup(flight)`, `checkPickup` (R2), `checkPrice` (R3),
+  `validateRequest(input, flight, hotel, airport, route)` → all violations in order R1 (exists, airport/city, route,
+  adults, childAges, largeBags, smallBags) → R2 → R3. Unknown flight/hotel on POST is **422 R1** (404 only on price-range).
+- `rules/eligibility.js` — `checkFit` (R5), `findClash` / `busyViolation` (R6), `checkVehicle` (R5+R6),
+  `worksAtAirport` / `drivesToArea` / `openAtPickup` (R4), `evaluateSupplier(request, company, vehicles, busyTimes)`,
+  `canServe`, `summarize(request, companies, busyTimes)` → `{ supplierCount, reason }`.
+  Eligibility functions take the **API request object** (uses `flight.to`, `hotel.city/area`, `pickupAt`, `busyUntil`,
+  `passengers`, bags, `carType`).
+  Messages: "Needs 3 large-bag spaces, SC-1 has 2." / "SC-2 is busy 10 Apr 11:00 – 14:00." /
+  "Traveler asked for SUV, EP-1 is a SEDAN." / reason sentences per stage (airport → area → open → fits → free).
+- `repos/companies.js` — `loadCompanies()`, `getCompany(id)` (company objects with airports, areas, vehicles in
+  camelCase), `listBusyTimes(vehicleIds?)` → `[{ vehicleId, startAt, endAt, source, rideId, bookingNumber }]`.
+- `repos/requests.js` — `getRequest`, `listRequests({traveler, status})` (newest first), `insertRequest`
+  (id `REQ-` + `ride_request_seq`), `findIdByIdempotencyKey`. Rows include `offer_count`, `booking_number`.
+- `services/requests.js` — zod `requestBody` (shape → 400), `toRequestObject(row)` (**reuse in every later slice**),
+  `createRequest(body, key)` → `{status 201|200, body}`, `getRequestView`, `listRequestViews`.
+  Idempotency: existing key → 200 same body; concurrent duplicate caught via 23505 on `ride_requests_idempotency_key_key`.
+- `routes/requests.js` — `POST /api/requests`, `GET /api/requests?traveler=`, `GET /api/requests/:requestId`.
+- Tests: `test/rules/validateRequest.test.js`, `test/rules/eligibility.test.js`, `test/api/s2-requests.test.js`.
 
-Test count: **31 passing**.
+Test count: **61 passing**.
 
 ## Implementation decisions (beyond the build plan)
 
@@ -123,11 +142,16 @@ Test count: **31 passing**.
   so two inserts in one transaction still order by creation time.
 - Supplier list order = order in `taxi_companies.json` (so TX-JP-01 is first, as the plan's test expects).
 - Seed requests are loaded as-is (not re-validated against R1–R3).
+- Serveability is computed live on every read (busy times change). For a BOOKED request it is
+  `{ supplierCount: null, reason: null }`.
+- Seed REQ-0002 (KIX → Osaka / Namba, SEDAN) has 0 suppliers by the data: Kansai Airport Taxi has no SEDAN.
+- The live `taxi` DB has test requests REQ-1001/1002 from the S2 check; run `docker compose down -v` before the demo.
 
-## Next up — S2 backend (post the request)
+## Next up — S3 backend (supplier dashboard, R4–R6)
 
-1. Tests first (plan §6 Slice 2 list): Menon 201 + busyUntil 14:30 + supplierCount 2; R3 edges 10200/16800 ok,
-   10199/16801 422; R2 11:29 422, null → 11:30; `Z` → 400; three R1 violations at once; 2.5 / "12,000" → 400;
-   idempotency; 7 adults → supplierCount 0 + reason sentence; FL-405 → supplierCount 1.
-2. `rules/requestRules.js` → `validateRequest`; `rules/eligibility.js` → `evaluateSupplier`, `summarize`;
-   `services/requests.js`, `repos/requests.js`, `routes/requests.js`. Request ids `REQ-` + `ride_request_seq`.
+1. Tests first (plan §7 Slice 3 list): Sakura sees Menon with fittingFreeVehicles [SC-3]; Sakura detail per-car
+   verdicts (SC-1 R5, SC-4 R5, SC-2 R6 RIDE-0001, SC-3 ok); Edo sees [EP-1, EP-2]; Narita Star not listed and detail
+   → 403 R4 "does not drive to Tokyo / Ueno"; Haneda Family not listed; carType BUS → neither; pickup 14:00 → SC-2 free;
+   seed REQ-0001 on Sakura's dashboard.
+2. `services/dashboard.js` (reuse `evaluateSupplier`, `loadCompanies`/`getCompany`, `listBusyTimes`,
+   `listRequests({status:'OPEN'})`, `toRequestObject`), `routes/dashboard.js`. `myOffers` = [] until S4.
