@@ -3,7 +3,7 @@ import { randomInt } from 'node:crypto';
 import { query, withTransaction } from '../db.js';
 import { AppError, conflict, notFound } from '../errors.js';
 import { busyViolation, findClash } from '../rules/eligibility.js';
-import { listBusyTimes } from '../repos/companies.js';
+import { listBusyTimes, lockVehicle } from '../repos/companies.js';
 import { getRequest, lockRequest } from '../repos/requests.js';
 import { lockOffer } from '../repos/offers.js';
 import * as repo from '../repos/bookings.js';
@@ -82,7 +82,8 @@ export async function bookOffer(rawOfferId) {
     if (requestStatus !== 'OPEN') throw conflict(`Request ${requestId} is already booked.`);
     const request = toRequestObject(await getRequest(requestId, db));
 
-    // 3. Is the car still free? (M6)
+    // 3. Is the car still free? (M6) Lock the car first so two bookings of it run one after the other.
+    await lockVehicle(offer.vehicleId, db);
     const clash = findClash(offer.vehicleId, request.pickupAt, request.busyUntil,
       await listBusyTimes([offer.vehicleId], db));
     if (clash) throw busyConflict(offer.vehicleId, clash);

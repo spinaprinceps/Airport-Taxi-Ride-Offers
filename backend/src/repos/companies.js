@@ -49,6 +49,12 @@ export async function getVehicle(vehicleId, db = { query }) {
   } : null;
 }
 
+// Serializes everything that adds or moves a busy time of this car (book, accept change).
+// FOR NO KEY UPDATE conflicts with itself but not with the KEY SHARE locks taken by foreign keys.
+export async function lockVehicle(vehicleId, db) {
+  await db.query(`SELECT 1 FROM vehicles WHERE vehicle_id = $1 FOR NO KEY UPDATE`, [vehicleId]);
+}
+
 // All busy times (seed rides + bookings), optionally only for some cars.
 export async function listBusyTimes(vehicleIds = null, db = { query }) {
   const { rows } = await db.query(
