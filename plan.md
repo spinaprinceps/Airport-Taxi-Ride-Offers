@@ -51,7 +51,7 @@ only records progress, decisions and deviations.
 | Slice | Backend | Frontend | Notes |
 | --- | --- | --- | --- |
 | S0 setup | **Done** | Partner | Done-when verified in Docker (backend side): boot loads data, 11 suppliers, restart keeps counts. |
-| S1 catalog | Next | | |
+| S1 catalog | **Done** | Partner | Verified live in Docker: 240 flights, 49 hotels, Menon range, R1 422. Browser "Done when" needs frontend. |
 | S2 requests | Pure rules done early | | `hours.js`, `intervals.js` + tests. |
 | S3 dashboard | Not started | | |
 | S4 offers | Not started | | |
@@ -93,11 +93,25 @@ only records progress, decisions and deviations.
 - Tests: `test/api/s0-load.test.js` (counts, idempotent reload, seed request fill, busy times exact,
   airport_cities, overlap constraint 23P01, back-to-back allowed, suppliers contract).
 
+### S1 — flights, hotels, price range (not yet committed)
+- `GET /api/flights` — 240 flights landing at ARRIVAL_AIRPORTS, sorted by `arrival_at, flight_id`;
+  shape `{ flightId, airline, flightNumber, from, to, arrivalLocal }`.
+- `GET /api/hotels` — 49, sorted by city, area, name; shape `{ hotelId, name, city, area }`.
+- `GET /api/price-range?flightId&hotelId` — contract JSON; 400 missing param; 404 unknown flight/hotel;
+  422 R1 (`field: hotelId`) "NRT does not serve Osaka. It serves: Tokyo."
+- `rules/requestRules.js` → `checkAirportServesCity(airport{code, servesCities}, hotel)`: returns violation or null.
+  Airport with no cities → R1 on `flightId`: "DEL is not an arrival airport for this service (NRT, HND, KIX, DXB, AUH)."
+- `services/catalog.js` → `resolveTrip(flightId, hotelId, db?)` returns `{ flight, hotel, airport, route, violation }`
+  — **reuse this in S2** for request validation.
+- `repos/catalog.js` → `getFlight`, `getHotel`, `getAirport` (servesCities sorted A–Z), `getRoute`; each takes an
+  optional `db` (a transaction client).
+- Tests: `test/rules/requestRules.test.js`, `test/api/s1-catalog.test.js`.
+
 ### S2 pure rules (built early, while waiting for data) — not yet committed
 - `src/rules/hours.js` — `isOpenAt(from, until, hhmm)`, inclusive, handles midnight crossing, accepts HH:MM:SS.
 - `src/rules/intervals.js` — `overlaps(aStart, aEnd, bStart, bEnd)`, half-open.
 
-Test count: **20 passing**.
+Test count: **31 passing**.
 
 ## Implementation decisions (beyond the build plan)
 
@@ -110,9 +124,10 @@ Test count: **20 passing**.
 - Supplier list order = order in `taxi_companies.json` (so TX-JP-01 is first, as the plan's test expects).
 - Seed requests are loaded as-is (not re-validated against R1–R3).
 
-## Next up — S1 backend (choose flight and hotel, see price range)
+## Next up — S2 backend (post the request)
 
-1. Tests first: `GET /api/flights` (240, none to BLR/DEL/BOM/MAA/ITM, sorted by arrival), `GET /api/hotels` (49),
-   `GET /api/price-range?flightId=FL-401&hotelId=HTL-TYO-004` → contract JSON; FL-401 + HTL-OSA-001 → 422 R1;
-   FL-999 → 404.
-2. `rules/requestRules.js` → `checkAirportServesCity(airport, hotel)`; extend `services/catalog.js`, `routes/catalog.js`.
+1. Tests first (plan §6 Slice 2 list): Menon 201 + busyUntil 14:30 + supplierCount 2; R3 edges 10200/16800 ok,
+   10199/16801 422; R2 11:29 422, null → 11:30; `Z` → 400; three R1 violations at once; 2.5 / "12,000" → 400;
+   idempotency; 7 adults → supplierCount 0 + reason sentence; FL-405 → supplierCount 1.
+2. `rules/requestRules.js` → `validateRequest`; `rules/eligibility.js` → `evaluateSupplier`, `summarize`;
+   `services/requests.js`, `repos/requests.js`, `routes/requests.js`. Request ids `REQ-` + `ride_request_seq`.

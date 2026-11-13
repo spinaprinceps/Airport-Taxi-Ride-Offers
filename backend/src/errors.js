@@ -22,5 +22,8 @@ export function ruleViolation(violations) {
   return new AppError(422, 'RULE_VIOLATION', message, violations);
 }
 
+// Express 4 does not catch rejected promises; wrap every async handler.
+export const asyncRoute = (fn) => (req, res, next) => fn(req, res, next).catch(next);
+
 // A violation: { rule: 'R3', field: 'priceInr', message: '...' }
 export const v = (rule, field, message) => ({ rule, field, message });

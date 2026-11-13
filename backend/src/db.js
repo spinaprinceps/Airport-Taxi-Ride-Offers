@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import { DATABASE_URL } from './config.js';
 
@@ -12,6 +13,12 @@ export const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 10 });
 
 export function query(text, params) {
   return pool.query(text, params);
+}
+
+// Runs schema.sql (every statement is IF NOT EXISTS), at every boot before the loader.
+export async function applySchema() {
+  const sql = await readFile(new URL('./schema.sql', import.meta.url), 'utf8');
+  await pool.query(sql);
 }
 
 // Runs fn(client) inside BEGIN/COMMIT; rolls back on any throw.
