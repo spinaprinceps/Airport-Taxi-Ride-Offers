@@ -12,3 +12,15 @@ offersRouter.post('/suppliers/:companyId/requests/:requestId/offers', asyncRoute
 offersRouter.get('/suppliers/:companyId/offers', asyncRoute(async (req, res) => {
   res.json(await offers.listSupplierOffers(req.params.companyId));
 }));
+
+offersRouter.get('/requests/:requestId/offers', asyncRoute(async (req, res) => {
+  const { sort, type } = req.query;
+  res.json(await offers.listRequestOffers(req.params.requestId, {
+    sort: typeof sort === 'string' ? sort : undefined,
+    type: typeof type === 'string' ? type : undefined,
+  }));
+}));
+
+offersRouter.post('/offers/:offerId/reject', asyncRoute(async (req, res) => {
+  res.json(await offers.rejectOffer(req.params.offerId));
+}));
